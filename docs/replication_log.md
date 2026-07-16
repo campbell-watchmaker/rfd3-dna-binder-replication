@@ -105,6 +105,39 @@ pair → 0.0 Å RMSD; a 3°-rotated protein → 1.78 Å; 15–16 interface H-bon
 major-groove), consistent with a HTH major-groove reader. Unit-tested in
 `tests/test_binder_block.py`.
 
+## Specificity-block architecture (specs/specificity_block/)
+
+Authored the specificity block — the ΔminPAE negative-design half that took the
+paper from ~0.5% (binder block) to ~3% specific designs. See
+`specs/specificity_block/PIPELINE.md`.
+
+Flow: binder-block passers with on-target **minPAE < 1.25** → LigandMPNN resample
+(100 seq/backbone, temp 0.1) → on-target pre-filter fold (RMSD < 1.5 Å, ipTM >
+0.9) → **templated all-by-all** fold vs on-target + off-targets → rank by ΔminPAE,
+top 96/target.
+
+**Off-target panel** (`scripts/make_offtarget_set.py`): for PRNP, 46 targets —
+on-target (ΔminPAE reference) + 36 single-base-substitution variants (3 × 12 bp;
+reproduces the paper's "specific over 35/40 single-base variants" test for DBS5)
++ 9 unrelated Table 1 decoys. Decoy sequences transcribed from the paper's Table 1
+(flagged in-code to verify before a production run).
+
+**ΔminPAE** (`scripts/compute_delta_minpae.py`, CPU, here): minPAE = min over
+protein-residue × DNA-residue pairs of PAE(i,j), checked in **both** PAE
+orientations; ΔminPAE = min over off-targets of minPAE(off) − minPAE(on). Ranked
+descending. Validated on synthetic PAE matrices: a specific design (on-target low,
+off-targets high) ranks above a promiscuous one (off-target also low), and minPAE
+correctly takes the global protein–DNA block minimum.
+
+**Oracle constraint (important):** the specificity block **cannot use esmfold2** —
+ΔminPAE needs a PAE matrix, which only the AF3-class folders (protenix / openfold3)
+emit. This differs from the binder block's three-oracle comparison (which only
+needs RMSD/ipTM). protenix is primary, openfold3 the cross-check.
+
+`scripts/build_allbyall_inputs.py` builds one complex-JSON per (design × DNA
+target) plus a `folds_manifest.json` skeleton for `compute_delta_minpae.py`.
+Unit-tested in `tests/test_specificity_block.py` (3 tests).
+
 ## First-pass scale & sequencing decisions
 
 - **Smoke test first** (~10 designs) to validate the spec end-to-end before GPU budget.
@@ -116,7 +149,7 @@ major-groove), consistent with a HTH major-groove reader. Unit-tested in
 - [x] Repo scaffolded.
 - [x] PRNP-site target prepared.
 - [x] Binder-block spec authored.
-- [ ] Specificity-block spec authored.
+- [x] Specificity-block spec authored.
 - [ ] Baseline CPU analyses (DNA-similarity, TF embedding, ΔminPAE re-derivation).
 - [ ] Generation run via pecli.
 - [ ] Returned designs analyzed.

@@ -1,0 +1,24 @@
+{
+  "_comment": "Templated all-by-all fold config for the specificity block. Each specificity-resampled design is folded against the on-target DNA AND every off-target DNA (single-base variants + decoys), then ranked by ΔminPAE. This REQUIRES a PAE matrix.",
+
+  "_oracle_constraint": "PAE-emitting AF3-class folders ONLY -- protenix or openfold3. esmfold2 does NOT emit a PAE matrix, so it CANNOT be used for the specificity block (this differs from the binder block's three-oracle comparison, which only needs RMSD/ipTM). Pick protenix as primary (closest to the paper's AF3); openfold3 as cross-check.",
+
+  "oracle": "protenix",
+  "seeds": 1,
+  "gpu": "large",
+
+  "_templated_note": "The paper uses TEMPLATED all-by-all folding: the on-target-designed protein-DNA complex serves as a structural template so each off-target fold is evaluated on the same binding pose rather than folded de novo. In pecli this is the fold tool's template input; supply the on-target complex CIF as the template for every off-target fold of that design. Confirm the exact template-input field against the pecli protenix/openfold3 guide at submit time.",
+
+  "filters": {
+    "_comment": "Specificity-block acceptance gates (paper): tighter than the binder block.",
+    "dna_aligned_ca_rmsd_max": 1.5,
+    "iptm_min": 0.9,
+    "_then": "rank surviving designs by ΔminPAE descending, take top 96 per target"
+  },
+
+  "delta_minpae": {
+    "definition": "min over off-targets of (minPAE_off - minPAE_on); minPAE = min over protein-residue x DNA-residue pairs of PAE(i,j)",
+    "rank": "descending",
+    "top_n_per_target": 96
+  }
+}
