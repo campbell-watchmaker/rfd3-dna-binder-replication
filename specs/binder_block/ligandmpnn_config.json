@@ -1,0 +1,22 @@
+{
+  "_comment": "pecli ligandmpnn config for binder-block sequence design. NA-aware inverse folding on the relaxed rfd3na complex. The DNA MUST remain in the input PDB (it is the bound context ligandmpnn conditions on). Field names follow pecli/tools/guides/ligandmpnn.md. Paper: temperature 0.1, 5 sequences per backbone.",
+
+  "model_type": "ligand_mpnn",
+  "use_atom_context": true,
+  "temperature": 0.1,
+  "batch_size": 5,
+  "number_of_batches": 1,
+
+  "_chains_note": "chains_to_design = the designed PROTEIN chain only (the DNA chains are held as context, never designed). The exact chain id depends on how rfd3na labels the designed chain in its output PDB -- set it from the actual output (typically the chain after the DNA chains). Do NOT list the DNA chains here.",
+  "chains_to_design": "SET_FROM_RFD3NA_OUTPUT",
+
+  "_fixed_residues_note": "Unlike enzyme design, there are no catalytic residues to hold fixed here -- the whole protein interface is designed. Leave fixed_residues empty unless a specific motif is being grafted.",
+
+  "packing": {
+    "pack_side_chains": true,
+    "pack_with_ligand_context": true,
+    "_comment": "Write full-atom PDBs (packed/ subfolder) so the downstream fold + H-bond interaction counting sees real side-chain atoms against the DNA."
+  },
+
+  "_ranking_note": "Rank designs by higher overall_confidence; weight ligand_confidence (positions near the DNA) for interface quality. First FASTA record is the WT input; subsequent records are the designs."
+}
