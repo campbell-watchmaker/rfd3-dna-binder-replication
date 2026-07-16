@@ -62,11 +62,61 @@ and "supporting" (buttressing) intra-protein H-bonds to DNA-contacting residues.
 - **Claude Science (CPU):** target prep, pipeline specs, all downstream analysis, figures, this repo.
 - **pecli + Claude Code (GPU/AWS):** rfd3na generation, ligandmpnn, folding. Prepare→approve→submit gate.
 
+## Binder-block architecture (specs/binder_block/)
+
+Authored the binder-block pipeline: rfd3na → OpenMM relax → ligandmpnn → three-oracle
+refold → filter. See `specs/binder_block/PIPELINE.md` for the stage-by-stage runbook.
+
+**rfd3na input schema — verified against the upstream foundry reference**
+(rosettacommons.github.io/foundry/models/rfd3/input.html + NA binder tutorial), not
+assumed. Findings that shaped the spec generator (`scripts/make_rfd3na_specs.py`):
+
+- `ori_token` is a **single `[x,y,z]`** per spec (COM-placement override), not a list.
+  The paper's "~5100 scaffolds per ori" therefore means **one diffusion run per ori
+  placement**, swept over positions. The generator emits one spec per ori (2 for the
+  12-bp PRNP target) + a manifest.
+- H-bond conditioning uses two `InputSelection` dicts — `select_hbond_donor` /
+  `select_hbond_acceptor` — keyed by DNA residue id (`"A6"`, `"B13-24"`) with
+  comma-joined atom-name strings (`"N7,O6"`). Requires **HBPLUS** installed GPU-side.
+- DNA is fixed via `select_fixed_atoms: {"<dna range>": "ALL"}`; `contig` lists the
+  fixed DNA chains + the designed protein length via the InputSelection mini-language.
+- CFG: `use_classifier_free_guidance` + `cfg_features` (subset of `active_donor`,
+  `active_acceptor`, `ref_atomwise_rasa`) + `cfg_scale` (default 1.5).
+- **Caveat to apply before submit:** the generator emits *all* candidate major-groove
+  atoms; conditioning on all of them over-constrains diffusion. Subset to the handful
+  of major-groove acceptors/donors on the poly-purine core actually being read (the
+  paper conditions on a selected subset). Documented in PIPELINE.md.
+
+**Sampler config** (`sampler_config.json`): `_smoke_test` (~10 designs, first pass per
+user decision) and `_full_run` (~1000 backbones/ori, paper scale) profiles. Params:
+num_timesteps 200, step_scale 1.5, gamma_0 0.6 (paper Fig. S4f; pecli rfd3na defaults).
+
+**Refold oracle: three-way comparison** (user decision) — protenix + openfold3 +
+esmfold2 on the same designs, comparing fold quality (DNA-aligned RMSD, ipTM) AND
+runtime/cost. esmfold2 needs both DNA strands listed explicitly (no auto-complement);
+`scripts/build_fold_inputs.py` writes both strands so one input serves all three.
+
+**Filtering** (`scripts/filter_binder_block.py`, CPU, here): DNA-aligned protein
+Cα-RMSD (superpose refold onto design by DNA atoms, measure protein Cα displacement —
+the paper's self-consistency metric), ipTM (from oracle output), and protein–DNA
+H-bond counts (open geometric reimplementation replacing DSSR). Gates: RMSD < 3 Å,
+ipTM > 0.7. Validated on a real complex (λ repressor–operator, PDB 1LMB): identity
+pair → 0.0 Å RMSD; a 3°-rotated protein → 1.78 Å; 15–16 interface H-bonds (4
+major-groove), consistent with a HTH major-groove reader. Unit-tested in
+`tests/test_binder_block.py`.
+
+## First-pass scale & sequencing decisions
+
+- **Smoke test first** (~10 designs) to validate the spec end-to-end before GPU budget.
+- **CPU baseline analyses deferred** until the binder + specificity block architecture
+  is built (user decision).
+
 ## Progress
 
 - [x] Repo scaffolded.
-- [ ] PRNP-site target prepared.
-- [ ] Binder-block + specificity-block specs authored.
+- [x] PRNP-site target prepared.
+- [x] Binder-block spec authored.
+- [ ] Specificity-block spec authored.
 - [ ] Baseline CPU analyses (DNA-similarity, TF embedding, ΔminPAE re-derivation).
 - [ ] Generation run via pecli.
 - [ ] Returned designs analyzed.

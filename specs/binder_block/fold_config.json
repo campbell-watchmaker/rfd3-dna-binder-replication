@@ -1,0 +1,40 @@
+{
+  "_comment": "Refold-and-validate configs for the binder block. User decision: run THREE oracles (protenix + openfold3 + esmfold2) on the SAME designed sequences and compare both fold quality (DNA-aligned RMSD, ipTM) AND runtime/cost. Each designed protein is folded WITH the target DNA duplex as context, so the fold predicts the protein-DNA complex and yields interface ipTM. Field names follow the respective pecli guides.",
+
+  "oracles": {
+    "protenix": {
+      "_role": "AF3-class MSA-based oracle; closest analog to the paper's AlphaFold3 filtering role. Highest expected accuracy, slowest/most expensive.",
+      "input_kind": "complex_json",
+      "seeds": 1,
+      "gpu": "large",
+      "_msa_note": "protenix auto-schedules an MSA step; for de novo designs the MSA will be shallow -- acceptable, this mirrors the paper's setup."
+    },
+    "openfold3": {
+      "_role": "Second open AF3-class reimplementation; cross-check against protenix on the same designs.",
+      "input_kind": "complex_json",
+      "seeds": 1,
+      "gpu": "large"
+    },
+    "esmfold2": {
+      "_role": "MSA-free language-model folder; much faster/cheaper, some accuracy cost. The runtime/cost floor of the comparison.",
+      "input_kind": "complex_json",
+      "_dsdna_note": "esmfold2 does NOT auto-generate the complementary strand -- the complex JSON must list BOTH DNA strands explicitly (second = antiparallel reverse-complement of the first).",
+      "gpu": "default"
+    }
+  },
+
+  "complex_json_template": {
+    "_comment": "Per-design complex input shared shape (protenix/openfold3/esmfold2 all accept a chains list). Built by scripts/build_fold_inputs.py from each ligandmpnn design sequence + the target DNA. Both DNA strands are always included so the same file works for all three oracles.",
+    "id": "prnp_binder_design_<k>",
+    "chains": [
+      {"id": "A", "type": "protein", "sequence": "<DESIGN_SEQUENCE>"},
+      {"id": "B", "type": "dna", "sequence": "TGAGGAGAGGAG"},
+      {"id": "C", "type": "dna", "sequence": "CTCCTCTCCTCA"}
+    ]
+  },
+
+  "comparison_outputs": {
+    "_comment": "scripts/filter_binder_block.py records, per design per oracle: DNA-aligned protein Ca-RMSD (design vs oracle-refold), ipTM, protein-DNA H-bond count, plus per-oracle wall-clock and (if available from pecli run metadata) GPU-time/cost. Written to results/binder_block/oracle_comparison.csv.",
+    "metrics": ["dna_aligned_ca_rmsd", "iptm", "protein_dna_hbonds", "runtime_s", "gpu_type"]
+  }
+}

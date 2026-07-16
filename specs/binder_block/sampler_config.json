@@ -1,0 +1,32 @@
+{
+  "_comment": "pecli rfd3na submit-time sampler config for the binder block. These are the diffusion knobs, NOT the design layout (that lives in the rfd3na_specs/*.json). Values match the paper (Sehgal et al. 2026, Fig. S4f) and pecli rfd3na defaults. Field names follow the pecli rfd3na tool interface; see pecli/tools/guides/rfd3na.md.",
+
+  "_smoke_test": {
+    "_comment": "SMOKE TEST scale first (user decision): ~10 designs total to validate the spec end-to-end before committing GPU budget. total designs = diffusion_batch_size * n_batches.",
+    "diffusion_batch_size": 5,
+    "n_batches": 1,
+    "num_timesteps": 200,
+    "step_scale": 1.5,
+    "gamma_0": 0.6,
+    "use_classifier_free_guidance": true,
+    "cfg_scale": 1.5,
+    "cfg_features": ["active_donor", "active_acceptor"],
+    "prevalidate_inputs": true,
+    "gpu": "large",
+    "_gpu_note": "L40S 48GB: protein+dsDNA is a multi-chain complex; start on large to avoid an A10G OOM on the smoke test, then right-size for the full run based on observed memory."
+  },
+
+  "_full_run": {
+    "_comment": "Paper scale for reference (NOT for the smoke test): ~1000 backbones per ori. Run only after the smoke test validates the spec. Swept once per ori spec in the manifest.",
+    "diffusion_batch_size": 8,
+    "n_batches": 125,
+    "num_timesteps": 200,
+    "step_scale": 1.5,
+    "gamma_0": 0.6,
+    "use_classifier_free_guidance": true,
+    "cfg_scale": 1.5,
+    "cfg_features": ["active_donor", "active_acceptor"],
+    "prevalidate_inputs": true,
+    "gpu": "large"
+  }
+}
