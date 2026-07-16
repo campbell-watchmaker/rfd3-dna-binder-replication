@@ -1,0 +1,26 @@
+{
+  "shorthand": "PRNP-site",
+  "paper_target_id": "T1",
+  "sequence_5to3": "TGAGGAGAGGAG",
+  "reverse_complement_5to3": "CTCCTCTCCTCA",
+  "length_bp": 12,
+  "class": "poly-purine core target (therapeutically relevant, non-TF site)",
+  "reference_designs": {
+    "DBB5": {
+      "KD_nM": 3,
+      "block": "binder",
+      "notes": "Asn114 bidentate selects A6; arginine-rich interface"
+    },
+    "DBB3": {
+      "KD_nM": 10,
+      "block": "binder",
+      "notes": "HT-SELEX motif GAGGA (x2 in target)"
+    },
+    "DBS5": {
+      "block": "specificity",
+      "notes": "polypurine preference, G>A; specific over 35/40 single-base variants"
+    }
+  },
+  "paper_specificity_block_hit_rate": "13/96 specific (highest among core targets)",
+  "source": "Sehgal et al. 2026, Table 1 (T1)"
+}
