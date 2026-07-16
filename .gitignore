@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+*.egg-info/
+
+# large / generated structure + result files (track specs & metrics, not bulk outputs)
+results/**/*.cif
+results/**/*.pdb
+results/**/*.npy
+*.ckpt
+
+# OS
+.DS_Store
+
+# keep dir structure
+!**/.gitkeep
