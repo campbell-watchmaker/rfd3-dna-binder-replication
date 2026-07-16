@@ -1,0 +1,21 @@
+{
+  "name": "prnp_duplex",
+  "sequences": [
+    {
+      "dna": {
+        "id": "A",
+        "sequence": "TGAGGAGAGGAG"
+      }
+    },
+    {
+      "dna": {
+        "id": "B",
+        "sequence": "CTCCTCTCCTCA"
+      }
+    }
+  ],
+  "modelSeeds": [
+    42
+  ],
+  "_note": "DNA-only duplex fold to produce the B-form target for rfd3na. Matches Sehgal et al. target prep (AF3 seed 42, single diffusion sample). Run GPU-side via pecli protenix/openfold3; the resulting duplex CIF is the rfd3na conditioning target."
+}
