@@ -1,0 +1,19 @@
+{
+  "_comment": "pecli ligandmpnn config for the specificity-block RESAMPLE. Same NA-aware inverse folding as the binder block, but deeper sampling (100 sequences/backbone vs 5) to find the specificity-optimal sequence on a backbone that already passed the binder block. Paper: temperature 0.1, 100 seq/backbone. Only binder-block passers with minPAE < 1.25 enter here.",
+
+  "model_type": "ligand_mpnn",
+  "use_atom_context": true,
+  "temperature": 0.1,
+  "batch_size": 25,
+  "number_of_batches": 4,
+  "_total_sequences": "batch_size * number_of_batches = 100 per backbone (paper scale). For a smoke test reduce to e.g. 10.",
+
+  "chains_to_design": "SET_FROM_RFD3NA_OUTPUT",
+
+  "packing": {
+    "pack_side_chains": true,
+    "pack_with_ligand_context": true
+  },
+
+  "_entry_gate": "Only backbones from binder-block passers with on-target minPAE < 1.25 are resampled here (paper). Enforce upstream when building the resample worklist."
+}
