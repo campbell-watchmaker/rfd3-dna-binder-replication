@@ -16,3 +16,8 @@ results/**/*.npy
 
 # keep dir structure
 !**/.gitkeep
+
+# analysis: re-fetchable reference structures (notebooks download on run)
+analysis/**/*.cif
+.jupyter_prefix/
+.jupyter_data/
