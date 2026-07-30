@@ -183,6 +183,15 @@ Unit-tested in `tests/test_specificity_block.py` (3 tests).
 - [x] Binder-block spec authored.
 - [x] Specificity-block spec authored.
 - [x] Pre-generation analysis: DNA-similarity premise (analysis/dna_similarity/, PR #6).
+- [x] Pre-generation analysis: **ΔminPAE oracle controls** (analysis/oracle_controls/).
+      128 folds of 8 natural controls (5 specific TFs / 1 non-specific duplex binder /
+      2 non-binders) × 8 DNA targets × {rf3, protenix}, MSA-free. $4.06, 0 failures.
+      On rf3 the classes separate as designed (argmin on the correct cognate site for
+      4/5 TFs; +9.1 Å binder/non-binder gap excluding TBP); on protenix they do not
+      (2/5; ranges overlap). Established rf3 as the primary specificity oracle and
+      measured the real per-fold cost. See analysis/oracle_controls/RESULTS.md.
+- [x] Off-target decoy panel verified against Sehgal et al. Table 1 (decoy-controlled;
+      note GGGCTTGCGA is labelled both Oct4-gRNA2 and Dux4-gRNA2 in the paper).
 - [ ] Generation run via pecli (binder block → specificity block).
 - [ ] Post-generation analysis: returned designs (DNA-aligned RMSD, ipTM, interactions).
 - [ ] Post-generation analysis: ΔminPAE re-derivation from released data (analysis/delta_minpae/) — validates the metric before applying it to our designs.

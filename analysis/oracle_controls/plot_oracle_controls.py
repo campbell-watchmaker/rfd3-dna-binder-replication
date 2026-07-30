@@ -121,8 +121,8 @@ def main():
                 on_target_of[r["protein"]] = r["on_target"]
 
     fig = plt.figure(figsize=(15.5, 11), facecolor=SURFACE)
-    gs = fig.add_gridspec(2, len(oracles), height_ratios=[1.35, 1.0],
-                          hspace=0.42, wspace=0.22,
+    gs = fig.add_gridspec(2, len(oracles), height_ratios=[1.5, 1.0],
+                          hspace=0.30, wspace=0.24,
                           left=0.115, right=0.975, top=0.90, bottom=0.085)
 
     # ---------------- Panels A/B: heatmaps ----------------
@@ -212,42 +212,53 @@ def main():
         axc.spines[s].set_visible(False)
     axc.tick_params(length=0, labelsize=8, colors=TEXT_SECONDARY)
 
-    # ---------------- Panel D: spread, all classes ----------------
+    # ---------------- Panel D: best minPAE per protein, by oracle ----------------
+    # This is the decisive panel: it shows whether a given oracle's PAE puts
+    # non-binders anywhere near binders. A useful oracle must leave a gap.
     if len(oracles) > 1:
         axd = fig.add_subplot(gs[1, 1])
         axd.set_facecolor(SURFACE)
-        oracle = oracles[0]
-        rows = {r["protein"]: r for r in summaries.get(oracle, [])}
-        ys = [fnum(rows[p]["spread"]) if p in rows else None for p in proteins]
-        cols = [CLASS_COLOR[prot_class[p]] for p in proteins]
-        idx = [i for i, v in enumerate(ys) if v is not None]
-        axd.barh([len(proteins) - 1 - i for i in idx], [ys[i] for i in idx],
-                 color=[cols[i] for i in idx], height=0.68, zorder=3, linewidth=0)
-        axd.set_yticks([len(proteins) - 1 - i for i in range(len(proteins))])
+        ORACLE_COLOR = {"rf3": "#2a78d6", "protenix": "#eb6834"}
+        ypos = {p: len(proteins) - 1 - i for i, p in enumerate(proteins)}
+        for oracle in oracles:
+            rows = {r["protein"]: r for r in summaries.get(oracle, [])}
+            xs = [fnum(rows[p]["min_pae_min"]) for p in proteins if p in rows]
+            ys = [ypos[p] for p in proteins if p in rows]
+            axd.plot(xs, ys, marker="o", ls="", markersize=9,
+                     color=ORACLE_COLOR.get(oracle, "#2a78d6"),
+                     markeredgecolor=SURFACE, markeredgewidth=2.0,
+                     label=oracle, zorder=4)
+        # class bands behind the dots so the three arms are readable at a glance
+        for p in proteins:
+            axd.axhspan(ypos[p] - 0.5, ypos[p] + 0.5,
+                        color=CLASS_COLOR[prot_class[p]], alpha=0.07, zorder=0)
+        axd.set_yticks([ypos[p] for p in proteins])
         axd.set_yticklabels(proteins, fontsize=8.5)
         for lbl, p in zip(axd.get_yticklabels(), proteins):
             lbl.set_color(CLASS_COLOR[prot_class[p]])
-        axd.set_xlabel("minPAE spread across the DNA panel (Å)",
+        axd.set_xlabel("best minPAE achieved anywhere on the panel (Å)",
                        fontsize=9, color=TEXT_SECONDARY)
-        axd.set_title(f"D   discrimination breadth — {oracle}",
+        axd.set_title("D   can the oracle tell a non-binder from a binder?",
                       fontsize=11.5, weight="bold", color=TEXT_PRIMARY, loc="left", pad=10)
-        axd.grid(axis="x", color=GRID, lw=0.8, zorder=0)
+        axd.grid(axis="x", color=GRID, lw=0.8, zorder=1)
         axd.set_axisbelow(True)
         for s in ("top", "right", "bottom", "left"):
             axd.spines[s].set_visible(False)
         axd.tick_params(length=0, labelsize=8, colors=TEXT_SECONDARY)
-        # class legend, direct-labelled so identity is never colour-alone
-        handles = [plt.Line2D([], [], marker="s", ls="", markersize=7,
-                              color=CLASS_COLOR[c], label=CLASS_LABEL[c])
-                   for c in CLASS_ORDER if c in set(prot_class.values())]
-        axd.legend(handles=handles, frameon=False, fontsize=8,
-                   labelcolor=TEXT_SECONDARY, loc="lower right")
+        handles = [plt.Line2D([], [], marker="o", ls="", markersize=9,
+                              markeredgecolor=SURFACE, markeredgewidth=2.0,
+                              color=ORACLE_COLOR[o], label=o) for o in oracles]
+        handles += [plt.Line2D([], [], marker="s", ls="", markersize=7,
+                               color=CLASS_COLOR[c], label=CLASS_LABEL[c])
+                    for c in CLASS_ORDER if c in set(prot_class.values())]
+        axd.legend(handles=handles, frameon=False, fontsize=7.8,
+                   labelcolor=TEXT_SECONDARY, loc="upper right")
 
     fig.suptitle("Does ΔminPAE separate specific DNA binding from non-specific and non-binding?",
                  fontsize=13.5, weight="bold", color=TEXT_PRIMARY, x=0.115, ha="left", y=0.965)
     fig.text(0.115, 0.928,
-             "Natural controls, folded MSA-free against a shared 24-bp DNA panel. "
-             "Black ring = that TF's cognate site.  · = fold not yet returned.",
+             "8 natural controls × 8 DNA targets, folded MSA-free against a shared 24-bp panel, "
+             "on two open AF3-class oracles.  Black ring = that TF's cognate site.",
              fontsize=9, color=TEXT_SECONDARY, ha="left")
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)

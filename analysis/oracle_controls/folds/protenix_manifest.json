@@ -1,0 +1,1775 @@
+[
+  {
+    "fold_id": "Zif268__zif268_site",
+    "protein": "Zif268",
+    "klass": "specific",
+    "dna_id": "zif268_site",
+    "is_on_target": true,
+    "on_target_for_protein": "zif268_site",
+    "oracle": "protenix",
+    "fold_input": "Zif268__zif268_site.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [
+      "ZN",
+      "ZN",
+      "ZN"
+    ],
+    "protein_len": 90,
+    "dna_len": 24,
+    "expected_tokens": 138,
+    "pae_path": "<local>//private/tmp/claude-502/-Users-campbell-mcduling-WMG-repos-rfd3-dna-binder-reproduction/c08b913d-7708-4f0e-814c-429673d71b60/scratchpad/probe_protenix/Zif268__zif268_site/seed_42/predictions/Zif268__zif268_site_full_data_sample_0.json",
+    "run_id": "623641"
+  },
+  {
+    "fold_id": "Zif268__lambda_OL1",
+    "protein": "Zif268",
+    "klass": "specific",
+    "dna_id": "lambda_OL1",
+    "is_on_target": false,
+    "on_target_for_protein": "zif268_site",
+    "oracle": "protenix",
+    "fold_input": "Zif268__lambda_OL1.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [
+      "ZN",
+      "ZN",
+      "ZN"
+    ],
+    "protein_len": 90,
+    "dna_len": 24,
+    "expected_tokens": 138,
+    "pae_path": "<local>/protenix/Zif268__lambda_OL1/Zif268__lambda_OL1/seed_42/predictions/Zif268__lambda_OL1_full_data_sample_0.json",
+    "run_id": "5d8f4e",
+    "iptm": 0.7506,
+    "ptm": 0.806,
+    "plddt": 88.5393
+  },
+  {
+    "fold_id": "Zif268__ebox",
+    "protein": "Zif268",
+    "klass": "specific",
+    "dna_id": "ebox",
+    "is_on_target": false,
+    "on_target_for_protein": "zif268_site",
+    "oracle": "protenix",
+    "fold_input": "Zif268__ebox.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [
+      "ZN",
+      "ZN",
+      "ZN"
+    ],
+    "protein_len": 90,
+    "dna_len": 24,
+    "expected_tokens": 138,
+    "pae_path": "<local>/protenix/Zif268__ebox/Zif268__ebox/seed_42/predictions/Zif268__ebox_full_data_sample_0.json",
+    "run_id": "df1037",
+    "iptm": 0.6284,
+    "ptm": 0.7119,
+    "plddt": 81.0336
+  },
+  {
+    "fold_id": "Zif268__hd_taatta",
+    "protein": "Zif268",
+    "klass": "specific",
+    "dna_id": "hd_taatta",
+    "is_on_target": false,
+    "on_target_for_protein": "zif268_site",
+    "oracle": "protenix",
+    "fold_input": "Zif268__hd_taatta.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [
+      "ZN",
+      "ZN",
+      "ZN"
+    ],
+    "protein_len": 90,
+    "dna_len": 24,
+    "expected_tokens": 138,
+    "pae_path": "<local>/protenix/Zif268__hd_taatta/Zif268__hd_taatta/seed_42/predictions/Zif268__hd_taatta_full_data_sample_0.json",
+    "run_id": "993452",
+    "iptm": 0.5695,
+    "ptm": 0.617,
+    "plddt": 79.2276
+  },
+  {
+    "fold_id": "Zif268__tata",
+    "protein": "Zif268",
+    "klass": "specific",
+    "dna_id": "tata",
+    "is_on_target": false,
+    "on_target_for_protein": "zif268_site",
+    "oracle": "protenix",
+    "fold_input": "Zif268__tata.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [
+      "ZN",
+      "ZN",
+      "ZN"
+    ],
+    "protein_len": 90,
+    "dna_len": 24,
+    "expected_tokens": 138,
+    "pae_path": "<local>/protenix/Zif268__tata/Zif268__tata/seed_42/predictions/Zif268__tata_full_data_sample_0.json",
+    "run_id": "972c3a",
+    "iptm": 0.5588,
+    "ptm": 0.6047,
+    "plddt": 79.4788
+  },
+  {
+    "fold_id": "Zif268__prnp",
+    "protein": "Zif268",
+    "klass": "specific",
+    "dna_id": "prnp",
+    "is_on_target": false,
+    "on_target_for_protein": "zif268_site",
+    "oracle": "protenix",
+    "fold_input": "Zif268__prnp.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [
+      "ZN",
+      "ZN",
+      "ZN"
+    ],
+    "protein_len": 90,
+    "dna_len": 24,
+    "expected_tokens": 138,
+    "pae_path": "<local>/protenix/Zif268__prnp/Zif268__prnp/seed_42/predictions/Zif268__prnp_full_data_sample_0.json",
+    "run_id": "9f858d",
+    "iptm": 0.7506,
+    "ptm": 0.8014,
+    "plddt": 88.1324
+  },
+  {
+    "fold_id": "Zif268__scramble",
+    "protein": "Zif268",
+    "klass": "specific",
+    "dna_id": "scramble",
+    "is_on_target": false,
+    "on_target_for_protein": "zif268_site",
+    "oracle": "protenix",
+    "fold_input": "Zif268__scramble.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [
+      "ZN",
+      "ZN",
+      "ZN"
+    ],
+    "protein_len": 90,
+    "dna_len": 24,
+    "expected_tokens": 138,
+    "pae_path": "<local>/protenix/Zif268__scramble/Zif268__scramble/seed_42/predictions/Zif268__scramble_full_data_sample_0.json",
+    "run_id": "684d31",
+    "iptm": 0.4626,
+    "ptm": 0.5173,
+    "plddt": 69.9106
+  },
+  {
+    "fold_id": "Zif268__polygc",
+    "protein": "Zif268",
+    "klass": "specific",
+    "dna_id": "polygc",
+    "is_on_target": false,
+    "on_target_for_protein": "zif268_site",
+    "oracle": "protenix",
+    "fold_input": "Zif268__polygc.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [
+      "ZN",
+      "ZN",
+      "ZN"
+    ],
+    "protein_len": 90,
+    "dna_len": 24,
+    "expected_tokens": 138,
+    "pae_path": "<local>/protenix/Zif268__polygc/Zif268__polygc/seed_42/predictions/Zif268__polygc_full_data_sample_0.json",
+    "run_id": "42ce05",
+    "iptm": 0.5198,
+    "ptm": 0.563,
+    "plddt": 71.4387
+  },
+  {
+    "fold_id": "LambdaRep__zif268_site",
+    "protein": "LambdaRep",
+    "klass": "specific",
+    "dna_id": "zif268_site",
+    "is_on_target": false,
+    "on_target_for_protein": "lambda_OL1",
+    "oracle": "protenix",
+    "fold_input": "LambdaRep__zif268_site.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 92,
+    "dna_len": 24,
+    "expected_tokens": 232,
+    "pae_path": "<local>/protenix/LambdaRep__zif268_site/LambdaRep__zif268_site/seed_42/predictions/LambdaRep__zif268_site_full_data_sample_0.json",
+    "run_id": "faf476",
+    "iptm": 0.3848,
+    "ptm": 0.4711,
+    "plddt": 58.2788
+  },
+  {
+    "fold_id": "LambdaRep__lambda_OL1",
+    "protein": "LambdaRep",
+    "klass": "specific",
+    "dna_id": "lambda_OL1",
+    "is_on_target": true,
+    "on_target_for_protein": "lambda_OL1",
+    "oracle": "protenix",
+    "fold_input": "LambdaRep__lambda_OL1.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 92,
+    "dna_len": 24,
+    "expected_tokens": 232,
+    "pae_path": "<local>/protenix/LambdaRep__lambda_OL1/LambdaRep__lambda_OL1/seed_42/predictions/LambdaRep__lambda_OL1_full_data_sample_0.json",
+    "run_id": "8de1e6",
+    "iptm": 0.3772,
+    "ptm": 0.4617,
+    "plddt": 58.0041
+  },
+  {
+    "fold_id": "LambdaRep__ebox",
+    "protein": "LambdaRep",
+    "klass": "specific",
+    "dna_id": "ebox",
+    "is_on_target": false,
+    "on_target_for_protein": "lambda_OL1",
+    "oracle": "protenix",
+    "fold_input": "LambdaRep__ebox.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 92,
+    "dna_len": 24,
+    "expected_tokens": 232,
+    "pae_path": "<local>/protenix/LambdaRep__ebox/LambdaRep__ebox/seed_42/predictions/LambdaRep__ebox_full_data_sample_0.json",
+    "run_id": "df56ca",
+    "iptm": 0.4374,
+    "ptm": 0.5044,
+    "plddt": 61.689
+  },
+  {
+    "fold_id": "LambdaRep__hd_taatta",
+    "protein": "LambdaRep",
+    "klass": "specific",
+    "dna_id": "hd_taatta",
+    "is_on_target": false,
+    "on_target_for_protein": "lambda_OL1",
+    "oracle": "protenix",
+    "fold_input": "LambdaRep__hd_taatta.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 92,
+    "dna_len": 24,
+    "expected_tokens": 232,
+    "pae_path": "<local>/protenix/LambdaRep__hd_taatta/LambdaRep__hd_taatta/seed_42/predictions/LambdaRep__hd_taatta_full_data_sample_0.json",
+    "run_id": "40fcf2",
+    "iptm": 0.3556,
+    "ptm": 0.4417,
+    "plddt": 56.6535
+  },
+  {
+    "fold_id": "LambdaRep__tata",
+    "protein": "LambdaRep",
+    "klass": "specific",
+    "dna_id": "tata",
+    "is_on_target": false,
+    "on_target_for_protein": "lambda_OL1",
+    "oracle": "protenix",
+    "fold_input": "LambdaRep__tata.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 92,
+    "dna_len": 24,
+    "expected_tokens": 232,
+    "pae_path": "<local>/protenix/LambdaRep__tata/LambdaRep__tata/seed_42/predictions/LambdaRep__tata_full_data_sample_0.json",
+    "run_id": "0aab52",
+    "iptm": 0.3265,
+    "ptm": 0.4259,
+    "plddt": 56.3327
+  },
+  {
+    "fold_id": "LambdaRep__prnp",
+    "protein": "LambdaRep",
+    "klass": "specific",
+    "dna_id": "prnp",
+    "is_on_target": false,
+    "on_target_for_protein": "lambda_OL1",
+    "oracle": "protenix",
+    "fold_input": "LambdaRep__prnp.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 92,
+    "dna_len": 24,
+    "expected_tokens": 232,
+    "pae_path": "<local>/protenix/LambdaRep__prnp/LambdaRep__prnp/seed_42/predictions/LambdaRep__prnp_full_data_sample_0.json",
+    "run_id": "7e9f9f",
+    "iptm": 0.4075,
+    "ptm": 0.4779,
+    "plddt": 58.5041
+  },
+  {
+    "fold_id": "LambdaRep__scramble",
+    "protein": "LambdaRep",
+    "klass": "specific",
+    "dna_id": "scramble",
+    "is_on_target": false,
+    "on_target_for_protein": "lambda_OL1",
+    "oracle": "protenix",
+    "fold_input": "LambdaRep__scramble.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 92,
+    "dna_len": 24,
+    "expected_tokens": 232,
+    "pae_path": "<local>/protenix/LambdaRep__scramble/LambdaRep__scramble/seed_42/predictions/LambdaRep__scramble_full_data_sample_0.json",
+    "run_id": "00be1a",
+    "iptm": 0.3477,
+    "ptm": 0.445,
+    "plddt": 56.5047
+  },
+  {
+    "fold_id": "LambdaRep__polygc",
+    "protein": "LambdaRep",
+    "klass": "specific",
+    "dna_id": "polygc",
+    "is_on_target": false,
+    "on_target_for_protein": "lambda_OL1",
+    "oracle": "protenix",
+    "fold_input": "LambdaRep__polygc.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 92,
+    "dna_len": 24,
+    "expected_tokens": 232,
+    "pae_path": "<local>/protenix/LambdaRep__polygc/LambdaRep__polygc/seed_42/predictions/LambdaRep__polygc_full_data_sample_0.json",
+    "run_id": "57bcba",
+    "iptm": 0.3641,
+    "ptm": 0.4617,
+    "plddt": 56.9726
+  },
+  {
+    "fold_id": "MAX_bHLH__zif268_site",
+    "protein": "MAX_bHLH",
+    "klass": "specific",
+    "dna_id": "zif268_site",
+    "is_on_target": false,
+    "on_target_for_protein": "ebox",
+    "oracle": "protenix",
+    "fold_input": "MAX_bHLH__zif268_site.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 86,
+    "dna_len": 24,
+    "expected_tokens": 220,
+    "pae_path": "<local>/protenix/MAX_bHLH__zif268_site/MAX_bHLH__zif268_site/seed_42/predictions/MAX_bHLH__zif268_site_full_data_sample_0.json",
+    "run_id": "62625a",
+    "iptm": 0.8967,
+    "ptm": 0.906,
+    "plddt": 93.8907
+  },
+  {
+    "fold_id": "MAX_bHLH__lambda_OL1",
+    "protein": "MAX_bHLH",
+    "klass": "specific",
+    "dna_id": "lambda_OL1",
+    "is_on_target": false,
+    "on_target_for_protein": "ebox",
+    "oracle": "protenix",
+    "fold_input": "MAX_bHLH__lambda_OL1.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 86,
+    "dna_len": 24,
+    "expected_tokens": 220,
+    "pae_path": "<local>/protenix/MAX_bHLH__lambda_OL1/MAX_bHLH__lambda_OL1/seed_42/predictions/MAX_bHLH__lambda_OL1_full_data_sample_0.json",
+    "run_id": "aa1996",
+    "iptm": 0.88,
+    "ptm": 0.8976,
+    "plddt": 92.7544
+  },
+  {
+    "fold_id": "MAX_bHLH__ebox",
+    "protein": "MAX_bHLH",
+    "klass": "specific",
+    "dna_id": "ebox",
+    "is_on_target": true,
+    "on_target_for_protein": "ebox",
+    "oracle": "protenix",
+    "fold_input": "MAX_bHLH__ebox.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 86,
+    "dna_len": 24,
+    "expected_tokens": 220,
+    "pae_path": "<local>/protenix/MAX_bHLH__ebox/MAX_bHLH__ebox/seed_42/predictions/MAX_bHLH__ebox_full_data_sample_0.json",
+    "run_id": "a5a128",
+    "iptm": 0.8919,
+    "ptm": 0.9042,
+    "plddt": 93.6775
+  },
+  {
+    "fold_id": "MAX_bHLH__hd_taatta",
+    "protein": "MAX_bHLH",
+    "klass": "specific",
+    "dna_id": "hd_taatta",
+    "is_on_target": false,
+    "on_target_for_protein": "ebox",
+    "oracle": "protenix",
+    "fold_input": "MAX_bHLH__hd_taatta.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 86,
+    "dna_len": 24,
+    "expected_tokens": 220,
+    "pae_path": "<local>/protenix/MAX_bHLH__hd_taatta/MAX_bHLH__hd_taatta/seed_42/predictions/MAX_bHLH__hd_taatta_full_data_sample_0.json",
+    "run_id": "a0b0b3",
+    "iptm": 0.8059,
+    "ptm": 0.8501,
+    "plddt": 86.9569
+  },
+  {
+    "fold_id": "MAX_bHLH__tata",
+    "protein": "MAX_bHLH",
+    "klass": "specific",
+    "dna_id": "tata",
+    "is_on_target": false,
+    "on_target_for_protein": "ebox",
+    "oracle": "protenix",
+    "fold_input": "MAX_bHLH__tata.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 86,
+    "dna_len": 24,
+    "expected_tokens": 220,
+    "pae_path": "<local>/protenix/MAX_bHLH__tata/MAX_bHLH__tata/seed_42/predictions/MAX_bHLH__tata_full_data_sample_0.json",
+    "run_id": "444c88",
+    "iptm": 0.7998,
+    "ptm": 0.8463,
+    "plddt": 86.3752
+  },
+  {
+    "fold_id": "MAX_bHLH__prnp",
+    "protein": "MAX_bHLH",
+    "klass": "specific",
+    "dna_id": "prnp",
+    "is_on_target": false,
+    "on_target_for_protein": "ebox",
+    "oracle": "protenix",
+    "fold_input": "MAX_bHLH__prnp.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 86,
+    "dna_len": 24,
+    "expected_tokens": 220,
+    "pae_path": "<local>/protenix/MAX_bHLH__prnp/MAX_bHLH__prnp/seed_42/predictions/MAX_bHLH__prnp_full_data_sample_0.json",
+    "run_id": "d8d2f4",
+    "iptm": 0.8683,
+    "ptm": 0.8895,
+    "plddt": 92.3919
+  },
+  {
+    "fold_id": "MAX_bHLH__scramble",
+    "protein": "MAX_bHLH",
+    "klass": "specific",
+    "dna_id": "scramble",
+    "is_on_target": false,
+    "on_target_for_protein": "ebox",
+    "oracle": "protenix",
+    "fold_input": "MAX_bHLH__scramble.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 86,
+    "dna_len": 24,
+    "expected_tokens": 220,
+    "pae_path": "<local>/protenix/MAX_bHLH__scramble/MAX_bHLH__scramble/seed_42/predictions/MAX_bHLH__scramble_full_data_sample_0.json",
+    "run_id": "32b20f",
+    "iptm": 0.839,
+    "ptm": 0.871,
+    "plddt": 88.9037
+  },
+  {
+    "fold_id": "MAX_bHLH__polygc",
+    "protein": "MAX_bHLH",
+    "klass": "specific",
+    "dna_id": "polygc",
+    "is_on_target": false,
+    "on_target_for_protein": "ebox",
+    "oracle": "protenix",
+    "fold_input": "MAX_bHLH__polygc.json",
+    "protein_chains": [
+      "A",
+      "B"
+    ],
+    "dna_chains": [
+      "C",
+      "D"
+    ],
+    "protein_copies": 2,
+    "ligands": [],
+    "protein_len": 86,
+    "dna_len": 24,
+    "expected_tokens": 220,
+    "pae_path": "<local>/protenix/MAX_bHLH__polygc/MAX_bHLH__polygc/seed_42/predictions/MAX_bHLH__polygc_full_data_sample_0.json",
+    "run_id": "b8d21b",
+    "iptm": 0.8945,
+    "ptm": 0.9041,
+    "plddt": 93.6044
+  },
+  {
+    "fold_id": "Engrailed__zif268_site",
+    "protein": "Engrailed",
+    "klass": "specific",
+    "dna_id": "zif268_site",
+    "is_on_target": false,
+    "on_target_for_protein": "hd_taatta",
+    "oracle": "protenix",
+    "fold_input": "Engrailed__zif268_site.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 60,
+    "dna_len": 24,
+    "expected_tokens": 108,
+    "pae_path": "<local>/protenix/Engrailed__zif268_site/Engrailed__zif268_site/seed_42/predictions/Engrailed__zif268_site_full_data_sample_0.json",
+    "run_id": "07d5b5",
+    "iptm": 0.754,
+    "ptm": 0.8102,
+    "plddt": 92.1089
+  },
+  {
+    "fold_id": "Engrailed__lambda_OL1",
+    "protein": "Engrailed",
+    "klass": "specific",
+    "dna_id": "lambda_OL1",
+    "is_on_target": false,
+    "on_target_for_protein": "hd_taatta",
+    "oracle": "protenix",
+    "fold_input": "Engrailed__lambda_OL1.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 60,
+    "dna_len": 24,
+    "expected_tokens": 108,
+    "pae_path": "<local>/protenix/Engrailed__lambda_OL1/Engrailed__lambda_OL1/seed_42/predictions/Engrailed__lambda_OL1_full_data_sample_0.json",
+    "run_id": "a500bd",
+    "iptm": 0.6984,
+    "ptm": 0.7853,
+    "plddt": 90.9359
+  },
+  {
+    "fold_id": "Engrailed__ebox",
+    "protein": "Engrailed",
+    "klass": "specific",
+    "dna_id": "ebox",
+    "is_on_target": false,
+    "on_target_for_protein": "hd_taatta",
+    "oracle": "protenix",
+    "fold_input": "Engrailed__ebox.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 60,
+    "dna_len": 24,
+    "expected_tokens": 108,
+    "pae_path": "<local>/protenix/Engrailed__ebox/Engrailed__ebox/seed_42/predictions/Engrailed__ebox_full_data_sample_0.json",
+    "run_id": "b44f32",
+    "iptm": 0.7969,
+    "ptm": 0.8318,
+    "plddt": 93.5869
+  },
+  {
+    "fold_id": "Engrailed__hd_taatta",
+    "protein": "Engrailed",
+    "klass": "specific",
+    "dna_id": "hd_taatta",
+    "is_on_target": true,
+    "on_target_for_protein": "hd_taatta",
+    "oracle": "protenix",
+    "fold_input": "Engrailed__hd_taatta.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 60,
+    "dna_len": 24,
+    "expected_tokens": 108,
+    "pae_path": "<local>/protenix/Engrailed__hd_taatta/Engrailed__hd_taatta/seed_42/predictions/Engrailed__hd_taatta_full_data_sample_0.json",
+    "run_id": "062e9e",
+    "iptm": 0.8332,
+    "ptm": 0.8482,
+    "plddt": 94.3636
+  },
+  {
+    "fold_id": "Engrailed__tata",
+    "protein": "Engrailed",
+    "klass": "specific",
+    "dna_id": "tata",
+    "is_on_target": false,
+    "on_target_for_protein": "hd_taatta",
+    "oracle": "protenix",
+    "fold_input": "Engrailed__tata.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 60,
+    "dna_len": 24,
+    "expected_tokens": 108,
+    "pae_path": "<local>/protenix/Engrailed__tata/Engrailed__tata/seed_42/predictions/Engrailed__tata_full_data_sample_0.json",
+    "run_id": "9631f2",
+    "iptm": 0.8039,
+    "ptm": 0.8281,
+    "plddt": 93.5311
+  },
+  {
+    "fold_id": "Engrailed__prnp",
+    "protein": "Engrailed",
+    "klass": "specific",
+    "dna_id": "prnp",
+    "is_on_target": false,
+    "on_target_for_protein": "hd_taatta",
+    "oracle": "protenix",
+    "fold_input": "Engrailed__prnp.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 60,
+    "dna_len": 24,
+    "expected_tokens": 108,
+    "pae_path": "<local>/protenix/Engrailed__prnp/Engrailed__prnp/seed_42/predictions/Engrailed__prnp_full_data_sample_0.json",
+    "run_id": "c09ef2",
+    "iptm": 0.6869,
+    "ptm": 0.796,
+    "plddt": 90.6429
+  },
+  {
+    "fold_id": "Engrailed__scramble",
+    "protein": "Engrailed",
+    "klass": "specific",
+    "dna_id": "scramble",
+    "is_on_target": false,
+    "on_target_for_protein": "hd_taatta",
+    "oracle": "protenix",
+    "fold_input": "Engrailed__scramble.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 60,
+    "dna_len": 24,
+    "expected_tokens": 108,
+    "pae_path": "<local>/protenix/Engrailed__scramble/Engrailed__scramble/seed_42/predictions/Engrailed__scramble_full_data_sample_0.json",
+    "run_id": "93a4e3",
+    "iptm": 0.6979,
+    "ptm": 0.7708,
+    "plddt": 89.2886
+  },
+  {
+    "fold_id": "Engrailed__polygc",
+    "protein": "Engrailed",
+    "klass": "specific",
+    "dna_id": "polygc",
+    "is_on_target": false,
+    "on_target_for_protein": "hd_taatta",
+    "oracle": "protenix",
+    "fold_input": "Engrailed__polygc.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 60,
+    "dna_len": 24,
+    "expected_tokens": 108,
+    "pae_path": "<local>/protenix/Engrailed__polygc/Engrailed__polygc/seed_42/predictions/Engrailed__polygc_full_data_sample_0.json",
+    "run_id": "ff951e",
+    "iptm": 0.5938,
+    "ptm": 0.7284,
+    "plddt": 86.9663
+  },
+  {
+    "fold_id": "TBP__zif268_site",
+    "protein": "TBP",
+    "klass": "specific",
+    "dna_id": "zif268_site",
+    "is_on_target": false,
+    "on_target_for_protein": "tata",
+    "oracle": "protenix",
+    "fold_input": "TBP__zif268_site.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 179,
+    "dna_len": 24,
+    "expected_tokens": 227,
+    "pae_path": "<local>/protenix/TBP__zif268_site/TBP__zif268_site/seed_42/predictions/TBP__zif268_site_full_data_sample_0.json",
+    "run_id": "f860d2",
+    "iptm": 0.3435,
+    "ptm": 0.4319,
+    "plddt": 58.2151
+  },
+  {
+    "fold_id": "TBP__lambda_OL1",
+    "protein": "TBP",
+    "klass": "specific",
+    "dna_id": "lambda_OL1",
+    "is_on_target": false,
+    "on_target_for_protein": "tata",
+    "oracle": "protenix",
+    "fold_input": "TBP__lambda_OL1.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 179,
+    "dna_len": 24,
+    "expected_tokens": 227,
+    "pae_path": "<local>/protenix/TBP__lambda_OL1/TBP__lambda_OL1/seed_42/predictions/TBP__lambda_OL1_full_data_sample_0.json",
+    "run_id": "cbb179",
+    "iptm": 0.3037,
+    "ptm": 0.4082,
+    "plddt": 55.0476
+  },
+  {
+    "fold_id": "TBP__ebox",
+    "protein": "TBP",
+    "klass": "specific",
+    "dna_id": "ebox",
+    "is_on_target": false,
+    "on_target_for_protein": "tata",
+    "oracle": "protenix",
+    "fold_input": "TBP__ebox.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 179,
+    "dna_len": 24,
+    "expected_tokens": 227,
+    "pae_path": "<local>/protenix/TBP__ebox/TBP__ebox/seed_42/predictions/TBP__ebox_full_data_sample_0.json",
+    "run_id": "65da55",
+    "iptm": 0.3433,
+    "ptm": 0.4453,
+    "plddt": 57.592
+  },
+  {
+    "fold_id": "TBP__hd_taatta",
+    "protein": "TBP",
+    "klass": "specific",
+    "dna_id": "hd_taatta",
+    "is_on_target": false,
+    "on_target_for_protein": "tata",
+    "oracle": "protenix",
+    "fold_input": "TBP__hd_taatta.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 179,
+    "dna_len": 24,
+    "expected_tokens": 227,
+    "pae_path": "<local>/protenix/TBP__hd_taatta/TBP__hd_taatta/seed_42/predictions/TBP__hd_taatta_full_data_sample_0.json",
+    "run_id": "eafeaa",
+    "iptm": 0.3578,
+    "ptm": 0.4885,
+    "plddt": 62.2031
+  },
+  {
+    "fold_id": "TBP__tata",
+    "protein": "TBP",
+    "klass": "specific",
+    "dna_id": "tata",
+    "is_on_target": true,
+    "on_target_for_protein": "tata",
+    "oracle": "protenix",
+    "fold_input": "TBP__tata.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 179,
+    "dna_len": 24,
+    "expected_tokens": 227,
+    "pae_path": "<local>/protenix/TBP__tata/TBP__tata/seed_42/predictions/TBP__tata_full_data_sample_0.json",
+    "run_id": "ccb5be",
+    "iptm": 0.3543,
+    "ptm": 0.4063,
+    "plddt": 57.3772
+  },
+  {
+    "fold_id": "TBP__prnp",
+    "protein": "TBP",
+    "klass": "specific",
+    "dna_id": "prnp",
+    "is_on_target": false,
+    "on_target_for_protein": "tata",
+    "oracle": "protenix",
+    "fold_input": "TBP__prnp.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 179,
+    "dna_len": 24,
+    "expected_tokens": 227,
+    "pae_path": "<local>/protenix/TBP__prnp/TBP__prnp/seed_42/predictions/TBP__prnp_full_data_sample_0.json",
+    "run_id": "757dc0",
+    "iptm": 0.34,
+    "ptm": 0.4003,
+    "plddt": 56.8804
+  },
+  {
+    "fold_id": "TBP__scramble",
+    "protein": "TBP",
+    "klass": "specific",
+    "dna_id": "scramble",
+    "is_on_target": false,
+    "on_target_for_protein": "tata",
+    "oracle": "protenix",
+    "fold_input": "TBP__scramble.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 179,
+    "dna_len": 24,
+    "expected_tokens": 227,
+    "pae_path": "<local>/protenix/TBP__scramble/TBP__scramble/seed_42/predictions/TBP__scramble_full_data_sample_0.json",
+    "run_id": "13188a",
+    "iptm": 0.2793,
+    "ptm": 0.4052,
+    "plddt": 54.6888
+  },
+  {
+    "fold_id": "TBP__polygc",
+    "protein": "TBP",
+    "klass": "specific",
+    "dna_id": "polygc",
+    "is_on_target": false,
+    "on_target_for_protein": "tata",
+    "oracle": "protenix",
+    "fold_input": "TBP__polygc.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 179,
+    "dna_len": 24,
+    "expected_tokens": 227,
+    "pae_path": "<local>/protenix/TBP__polygc/TBP__polygc/seed_42/predictions/TBP__polygc_full_data_sample_0.json",
+    "run_id": "75c7d0",
+    "iptm": 0.3163,
+    "ptm": 0.4128,
+    "plddt": 57.7034
+  },
+  {
+    "fold_id": "Sac7d__zif268_site",
+    "protein": "Sac7d",
+    "klass": "nonspecific_binder",
+    "dna_id": "zif268_site",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Sac7d__zif268_site.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 66,
+    "dna_len": 24,
+    "expected_tokens": 114,
+    "pae_path": "<local>/protenix/Sac7d__zif268_site/Sac7d__zif268_site/seed_42/predictions/Sac7d__zif268_site_full_data_sample_0.json",
+    "run_id": "32395a",
+    "iptm": 0.6848,
+    "ptm": 0.7981,
+    "plddt": 90.8377
+  },
+  {
+    "fold_id": "Sac7d__lambda_OL1",
+    "protein": "Sac7d",
+    "klass": "nonspecific_binder",
+    "dna_id": "lambda_OL1",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Sac7d__lambda_OL1.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 66,
+    "dna_len": 24,
+    "expected_tokens": 114,
+    "pae_path": "<local>/protenix/Sac7d__lambda_OL1/Sac7d__lambda_OL1/seed_42/predictions/Sac7d__lambda_OL1_full_data_sample_0.json",
+    "run_id": "094ae9",
+    "iptm": 0.5496,
+    "ptm": 0.7345,
+    "plddt": 85.7649
+  },
+  {
+    "fold_id": "Sac7d__ebox",
+    "protein": "Sac7d",
+    "klass": "nonspecific_binder",
+    "dna_id": "ebox",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Sac7d__ebox.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 66,
+    "dna_len": 24,
+    "expected_tokens": 114,
+    "pae_path": "<local>/protenix/Sac7d__ebox/Sac7d__ebox/seed_42/predictions/Sac7d__ebox_full_data_sample_0.json",
+    "run_id": "72fca1",
+    "iptm": 0.8288,
+    "ptm": 0.8763,
+    "plddt": 95.273
+  },
+  {
+    "fold_id": "Sac7d__hd_taatta",
+    "protein": "Sac7d",
+    "klass": "nonspecific_binder",
+    "dna_id": "hd_taatta",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Sac7d__hd_taatta.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 66,
+    "dna_len": 24,
+    "expected_tokens": 114,
+    "pae_path": "<local>/protenix/Sac7d__hd_taatta/Sac7d__hd_taatta/seed_42/predictions/Sac7d__hd_taatta_full_data_sample_0.json",
+    "run_id": "816f1c",
+    "iptm": 0.7773,
+    "ptm": 0.8484,
+    "plddt": 93.7074
+  },
+  {
+    "fold_id": "Sac7d__tata",
+    "protein": "Sac7d",
+    "klass": "nonspecific_binder",
+    "dna_id": "tata",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Sac7d__tata.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 66,
+    "dna_len": 24,
+    "expected_tokens": 114,
+    "pae_path": "<local>/protenix/Sac7d__tata/Sac7d__tata/seed_42/predictions/Sac7d__tata_full_data_sample_0.json",
+    "run_id": "82ba36",
+    "iptm": 0.7499,
+    "ptm": 0.8296,
+    "plddt": 92.8272
+  },
+  {
+    "fold_id": "Sac7d__prnp",
+    "protein": "Sac7d",
+    "klass": "nonspecific_binder",
+    "dna_id": "prnp",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Sac7d__prnp.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 66,
+    "dna_len": 24,
+    "expected_tokens": 114,
+    "pae_path": "<local>/protenix/Sac7d__prnp/Sac7d__prnp/seed_42/predictions/Sac7d__prnp_full_data_sample_0.json",
+    "run_id": "8e6f68",
+    "iptm": 0.6656,
+    "ptm": 0.7245,
+    "plddt": 90.6194
+  },
+  {
+    "fold_id": "Sac7d__scramble",
+    "protein": "Sac7d",
+    "klass": "nonspecific_binder",
+    "dna_id": "scramble",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Sac7d__scramble.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 66,
+    "dna_len": 24,
+    "expected_tokens": 114,
+    "pae_path": "<local>/protenix/Sac7d__scramble/Sac7d__scramble/seed_42/predictions/Sac7d__scramble_full_data_sample_0.json",
+    "run_id": "609f51",
+    "iptm": 0.7204,
+    "ptm": 0.8017,
+    "plddt": 90.7776
+  },
+  {
+    "fold_id": "Sac7d__polygc",
+    "protein": "Sac7d",
+    "klass": "nonspecific_binder",
+    "dna_id": "polygc",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Sac7d__polygc.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 66,
+    "dna_len": 24,
+    "expected_tokens": 114,
+    "pae_path": "<local>/protenix/Sac7d__polygc/Sac7d__polygc/seed_42/predictions/Sac7d__polygc_full_data_sample_0.json",
+    "run_id": "745c53",
+    "iptm": 0.5516,
+    "ptm": 0.7736,
+    "plddt": 85.8284
+  },
+  {
+    "fold_id": "Ubiquitin__zif268_site",
+    "protein": "Ubiquitin",
+    "klass": "nonbinder",
+    "dna_id": "zif268_site",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Ubiquitin__zif268_site.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 76,
+    "dna_len": 24,
+    "expected_tokens": 124,
+    "pae_path": "<local>/protenix/Ubiquitin__zif268_site/Ubiquitin__zif268_site/seed_42/predictions/Ubiquitin__zif268_site_full_data_sample_0.json",
+    "run_id": "b68d78",
+    "iptm": 0.4672,
+    "ptm": 0.7316,
+    "plddt": 83.9199
+  },
+  {
+    "fold_id": "Ubiquitin__lambda_OL1",
+    "protein": "Ubiquitin",
+    "klass": "nonbinder",
+    "dna_id": "lambda_OL1",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Ubiquitin__lambda_OL1.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 76,
+    "dna_len": 24,
+    "expected_tokens": 124,
+    "pae_path": "<local>/protenix/Ubiquitin__lambda_OL1/Ubiquitin__lambda_OL1/seed_42/predictions/Ubiquitin__lambda_OL1_full_data_sample_0.json",
+    "run_id": "51dbf1",
+    "iptm": 0.4794,
+    "ptm": 0.7407,
+    "plddt": 82.8657
+  },
+  {
+    "fold_id": "Ubiquitin__ebox",
+    "protein": "Ubiquitin",
+    "klass": "nonbinder",
+    "dna_id": "ebox",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Ubiquitin__ebox.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 76,
+    "dna_len": 24,
+    "expected_tokens": 124,
+    "pae_path": "<local>/protenix/Ubiquitin__ebox/Ubiquitin__ebox/seed_42/predictions/Ubiquitin__ebox_full_data_sample_0.json",
+    "run_id": "36e584",
+    "iptm": 0.4786,
+    "ptm": 0.7305,
+    "plddt": 83.5902
+  },
+  {
+    "fold_id": "Ubiquitin__hd_taatta",
+    "protein": "Ubiquitin",
+    "klass": "nonbinder",
+    "dna_id": "hd_taatta",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Ubiquitin__hd_taatta.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 76,
+    "dna_len": 24,
+    "expected_tokens": 124,
+    "pae_path": "<local>/protenix/Ubiquitin__hd_taatta/Ubiquitin__hd_taatta/seed_42/predictions/Ubiquitin__hd_taatta_full_data_sample_0.json",
+    "run_id": "4b64b1",
+    "iptm": 0.4669,
+    "ptm": 0.716,
+    "plddt": 84.0094
+  },
+  {
+    "fold_id": "Ubiquitin__tata",
+    "protein": "Ubiquitin",
+    "klass": "nonbinder",
+    "dna_id": "tata",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Ubiquitin__tata.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 76,
+    "dna_len": 24,
+    "expected_tokens": 124,
+    "pae_path": "<local>/protenix/Ubiquitin__tata/Ubiquitin__tata/seed_42/predictions/Ubiquitin__tata_full_data_sample_0.json",
+    "run_id": "1ef904",
+    "iptm": 0.4428,
+    "ptm": 0.5612,
+    "plddt": 76.5131
+  },
+  {
+    "fold_id": "Ubiquitin__prnp",
+    "protein": "Ubiquitin",
+    "klass": "nonbinder",
+    "dna_id": "prnp",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Ubiquitin__prnp.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 76,
+    "dna_len": 24,
+    "expected_tokens": 124,
+    "pae_path": "<local>/protenix/Ubiquitin__prnp/Ubiquitin__prnp/seed_42/predictions/Ubiquitin__prnp_full_data_sample_0.json",
+    "run_id": "d01497",
+    "iptm": 0.4494,
+    "ptm": 0.715,
+    "plddt": 84.2732
+  },
+  {
+    "fold_id": "Ubiquitin__scramble",
+    "protein": "Ubiquitin",
+    "klass": "nonbinder",
+    "dna_id": "scramble",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Ubiquitin__scramble.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 76,
+    "dna_len": 24,
+    "expected_tokens": 124,
+    "pae_path": "<local>/protenix/Ubiquitin__scramble/Ubiquitin__scramble/seed_42/predictions/Ubiquitin__scramble_full_data_sample_0.json",
+    "run_id": "baac41",
+    "iptm": 0.4757,
+    "ptm": 0.7311,
+    "plddt": 83.4932
+  },
+  {
+    "fold_id": "Ubiquitin__polygc",
+    "protein": "Ubiquitin",
+    "klass": "nonbinder",
+    "dna_id": "polygc",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "Ubiquitin__polygc.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 76,
+    "dna_len": 24,
+    "expected_tokens": 124,
+    "pae_path": "<local>/protenix/Ubiquitin__polygc/Ubiquitin__polygc/seed_42/predictions/Ubiquitin__polygc_full_data_sample_0.json",
+    "run_id": "e72720",
+    "iptm": 0.468,
+    "ptm": 0.7191,
+    "plddt": 81.6274
+  },
+  {
+    "fold_id": "GFP__zif268_site",
+    "protein": "GFP",
+    "klass": "nonbinder",
+    "dna_id": "zif268_site",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "GFP__zif268_site.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 238,
+    "dna_len": 24,
+    "expected_tokens": 286,
+    "pae_path": "<local>/protenix/GFP__zif268_site/GFP__zif268_site/seed_42/predictions/GFP__zif268_site_full_data_sample_0.json",
+    "run_id": "ba87f6",
+    "iptm": 0.2513,
+    "ptm": 0.3419,
+    "plddt": 48.9341
+  },
+  {
+    "fold_id": "GFP__lambda_OL1",
+    "protein": "GFP",
+    "klass": "nonbinder",
+    "dna_id": "lambda_OL1",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "GFP__lambda_OL1.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 238,
+    "dna_len": 24,
+    "expected_tokens": 286,
+    "pae_path": "<local>/protenix/GFP__lambda_OL1/GFP__lambda_OL1/seed_42/predictions/GFP__lambda_OL1_full_data_sample_0.json",
+    "run_id": "6d7d8d",
+    "iptm": 0.3001,
+    "ptm": 0.3571,
+    "plddt": 49.1314
+  },
+  {
+    "fold_id": "GFP__ebox",
+    "protein": "GFP",
+    "klass": "nonbinder",
+    "dna_id": "ebox",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "GFP__ebox.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 238,
+    "dna_len": 24,
+    "expected_tokens": 286,
+    "pae_path": "<local>/protenix/GFP__ebox/GFP__ebox/seed_42/predictions/GFP__ebox_full_data_sample_0.json",
+    "run_id": "9042fa",
+    "iptm": 0.2728,
+    "ptm": 0.3547,
+    "plddt": 49.3884
+  },
+  {
+    "fold_id": "GFP__hd_taatta",
+    "protein": "GFP",
+    "klass": "nonbinder",
+    "dna_id": "hd_taatta",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "GFP__hd_taatta.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 238,
+    "dna_len": 24,
+    "expected_tokens": 286,
+    "pae_path": "<local>/protenix/GFP__hd_taatta/GFP__hd_taatta/seed_42/predictions/GFP__hd_taatta_full_data_sample_0.json",
+    "run_id": "f8273e",
+    "iptm": 0.3082,
+    "ptm": 0.3633,
+    "plddt": 50.3913
+  },
+  {
+    "fold_id": "GFP__tata",
+    "protein": "GFP",
+    "klass": "nonbinder",
+    "dna_id": "tata",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "GFP__tata.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 238,
+    "dna_len": 24,
+    "expected_tokens": 286,
+    "pae_path": "<local>/protenix/GFP__tata/GFP__tata/seed_42/predictions/GFP__tata_full_data_sample_0.json",
+    "run_id": "be0a85",
+    "iptm": 0.3051,
+    "ptm": 0.3796,
+    "plddt": 51.4217
+  },
+  {
+    "fold_id": "GFP__prnp",
+    "protein": "GFP",
+    "klass": "nonbinder",
+    "dna_id": "prnp",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "GFP__prnp.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 238,
+    "dna_len": 24,
+    "expected_tokens": 286,
+    "pae_path": "<local>/protenix/GFP__prnp/GFP__prnp/seed_42/predictions/GFP__prnp_full_data_sample_0.json",
+    "run_id": "889bba",
+    "iptm": 0.3079,
+    "ptm": 0.3624,
+    "plddt": 49.4073
+  },
+  {
+    "fold_id": "GFP__scramble",
+    "protein": "GFP",
+    "klass": "nonbinder",
+    "dna_id": "scramble",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "GFP__scramble.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 238,
+    "dna_len": 24,
+    "expected_tokens": 286,
+    "pae_path": "<local>/protenix/GFP__scramble/GFP__scramble/seed_42/predictions/GFP__scramble_full_data_sample_0.json",
+    "run_id": "c8e51d",
+    "iptm": 0.2453,
+    "ptm": 0.3397,
+    "plddt": 49.2584
+  },
+  {
+    "fold_id": "GFP__polygc",
+    "protein": "GFP",
+    "klass": "nonbinder",
+    "dna_id": "polygc",
+    "is_on_target": false,
+    "on_target_for_protein": null,
+    "oracle": "protenix",
+    "fold_input": "GFP__polygc.json",
+    "protein_chains": [
+      "A"
+    ],
+    "dna_chains": [
+      "B",
+      "C"
+    ],
+    "protein_copies": 1,
+    "ligands": [],
+    "protein_len": 238,
+    "dna_len": 24,
+    "expected_tokens": 286,
+    "pae_path": "<local>/protenix/GFP__polygc/GFP__polygc/seed_42/predictions/GFP__polygc_full_data_sample_0.json",
+    "run_id": "b04cea",
+    "iptm": 0.2776,
+    "ptm": 0.3463,
+    "plddt": 48.7809
+  }
+]

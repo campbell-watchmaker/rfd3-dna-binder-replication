@@ -144,8 +144,20 @@ python analysis/oracle_controls/compute_control_metrics.py \
     --out-summary results/oracle_controls/rf3_summary.csv
 ```
 
-## Cost
+## Cost (measured, not estimated)
 
-64 folds/oracle at pecli's realised per-run cost: **rf3 ≈ $4**, **protenix ≈ $8**.
-Both run on the default A10G (108–286 tokens per complex, well under the ~700
-token limit).
+All 128 folds cost **$4.06** total over 3.0 GPU-h: rf3 **$0.022/fold**, protenix
+**$0.042/fold**. Both ran on the default A10G (108–286 tokens per complex, well
+under the ~700-token threshold that needs `gpu="large"`).
+
+These rates are 3× cheaper than the historical per-run averages the budget was
+set from, because the complexes are small and carry no MSA. At rf3's measured
+rate a full 73-design × 46-target specificity all-by-all (3,358 folds) is
+roughly **$75**.
+
+## Results
+
+See **`RESULTS.md`**. Headline: on rf3 the three classes separate as designed
+(argmin on the correct cognate site for 4/5 specific TFs; a +9.1 Å gap between
+binders and non-binders excluding TBP), while on protenix they do not
+(argmin 2/5; binder and non-binder ranges overlap).
