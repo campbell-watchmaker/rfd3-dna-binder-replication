@@ -65,6 +65,29 @@ def find_summary(root, oracle):
     return cands[0]
 
 
+def _merge_write(mpath, updated):
+    """Write our fields back WITHOUT clobbering concurrent edits.
+
+    Learned the hard way: this collector and submit_control_folds.py both write
+    the same manifest. Reading it, spending minutes downloading, then writing the
+    whole thing back silently discarded 29 run_ids the submitter had added in the
+    meantime -- the jobs were live and billed but no longer tracked. So re-read
+    from disk at write time and only overwrite the specific keys this tool owns.
+    """
+    on_disk = json.load(open(mpath))
+    by_id = {r["fold_id"]: r for r in on_disk}
+    OWNED = ("pae_path", "iptm", "ptm", "plddt")
+    for rec in updated:
+        tgt = by_id.get(rec["fold_id"])
+        if tgt is None:
+            continue
+        for k in OWNED:
+            if rec.get(k) is not None:
+                tgt[k] = rec[k]
+    with open(mpath, "w") as f:
+        json.dump(on_disk, f, indent=2)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--manifest", required=True)
@@ -115,8 +138,7 @@ def main():
                 pass
         collected += 1
 
-    with open(mpath, "w") as f:
-        json.dump(manifest, f, indent=2)
+    _merge_write(mpath, manifest)
 
     print(f"statuses: {counts}")
     print(f"collected {collected} PAE file(s)")
