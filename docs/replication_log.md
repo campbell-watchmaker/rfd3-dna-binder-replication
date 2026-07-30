@@ -141,8 +141,20 @@ Unit-tested in `tests/test_specificity_block.py` (3 tests).
 ## First-pass scale & sequencing decisions
 
 - **Smoke test first** (~10 designs) to validate the spec end-to-end before GPU budget.
-- **CPU baseline analyses deferred** until the binder + specificity block architecture
-  is built (user decision).
+- **Analysis sequencing (revised).** Of the three planned analyses, only the
+  DNA-similarity premise is a genuine *pre-generation* baseline (it depends on B-DNA
+  geometry alone, not on any design) — done, PR #6. The other two are really
+  *post-generation* design analyses and are deferred until designs have been returned
+  from the binder + specificity blocks:
+  - **TF sequence-space embedding map** — its scientific payload is whether *our*
+    designs land in novel regions of DNA-binder sequence space, which requires the
+    returned designs. The natural-set backdrop (Evo-1 on JASPAR TFs, ESM-2 on PDB
+    complex chains) is design-independent and will be batched into the generation GPU
+    session so that, once designs return, only the ~73 designs need embedding.
+  - **ΔminPAE re-derivation from released data** — an independent check of
+    `scripts/compute_delta_minpae.py` against the paper's released `summary_data.csv`.
+    Runs on CPU with no designs, but grouped with the post-generation analysis phase
+    so the specificity metric is validated right before it is applied to our designs.
 
 ## Progress
 
@@ -150,10 +162,10 @@ Unit-tested in `tests/test_specificity_block.py` (3 tests).
 - [x] PRNP-site target prepared.
 - [x] Binder-block spec authored.
 - [x] Specificity-block spec authored.
-- [x] Baseline CPU analysis: DNA-similarity premise (analysis/dna_similarity/, PR #6).
-- [ ] Baseline CPU analysis: TF sequence-space embedding map (analysis/tf_embedding/).
-- [ ] Baseline CPU analysis: ΔminPAE re-derivation from released data (analysis/delta_minpae/).
-- [ ] Generation run via pecli.
-- [ ] Returned designs analyzed.
+- [x] Pre-generation analysis: DNA-similarity premise (analysis/dna_similarity/, PR #6).
+- [ ] Generation run via pecli (binder block → specificity block).
+- [ ] Post-generation analysis: returned designs (DNA-aligned RMSD, ipTM, interactions).
+- [ ] Post-generation analysis: ΔminPAE re-derivation from released data (analysis/delta_minpae/) — validates the metric before applying it to our designs.
+- [ ] Post-generation analysis: TF sequence-space embedding map (analysis/tf_embedding/) — natural backdrop batched into the generation GPU session; designs overlaid after they return.
 - [ ] Figures + public writeup.
 - [ ] Reusable campaign-analysis skill.
