@@ -130,9 +130,29 @@ off-targets high) ranks above a promiscuous one (off-target also low), and minPA
 correctly takes the global protein–DNA block minimum.
 
 **Oracle constraint (important):** the specificity block **cannot use esmfold2** —
-ΔminPAE needs a PAE matrix, which only the AF3-class folders (protenix / openfold3)
-emit. This differs from the binder block's three-oracle comparison (which only
-needs RMSD/ipTM). protenix is primary, openfold3 the cross-check.
+ΔminPAE needs a PAE matrix, which only the AF3-class folders emit. This differs
+from the binder block's three-oracle comparison (which only needs RMSD/ipTM).
+
+> **Corrected 2026-07-30 (was: "protenix is primary, openfold3 the cross-check").**
+> That plan assumed protenix returns a per-token PAE matrix. It does not, as
+> wrapped by pecli: a completed run retains only
+> `*_summary_confidence_sample_0.json` — scalars plus 2×2 `chain_pair_*`
+> aggregates — and nothing else is even written to S3. The full matrix requires
+> `--need-atom-confidence true`, which additionally emits
+> `*_full_data_sample_<rank>.json` with `token_pair_pae`; the array is always
+> computed in memory but discarded otherwise.
+>
+> Meanwhile **rf3** (RosettaFold3) emits a full PAE *natively* —
+> `*_confidences.json` with `pae [N,N]`, `token_chain_ids`, `token_res_ids`,
+> already in the shape `scripts/compute_delta_minpae.py` parses — at roughly half
+> protenix's realised cost (~$0.06 vs ~$0.12 per fold, pecli's own figures over
+> ~90 runs each).
+>
+> **So rf3 becomes the primary specificity oracle, with protenix (PAE flag on) as
+> the cross-check.** Note protenix's PAE carries no chain labels, only integer
+> `token_asym_id`, so protein-vs-DNA tokens must be resolved positionally from
+> input entity order and the resulting counts asserted against the submitted
+> sequence lengths. See `analysis/oracle_controls/`.
 
 `scripts/build_allbyall_inputs.py` builds one complex-JSON per (design × DNA
 target) plus a `folds_manifest.json` skeleton for `compute_delta_minpae.py`.
