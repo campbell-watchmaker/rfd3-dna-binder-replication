@@ -150,7 +150,9 @@ Unit-tested in `tests/test_specificity_block.py` (3 tests).
 - [x] PRNP-site target prepared.
 - [x] Binder-block spec authored.
 - [x] Specificity-block spec authored.
-- [ ] Baseline CPU analyses (DNA-similarity, TF embedding, ΔminPAE re-derivation).
+- [x] Baseline CPU analysis: DNA-similarity premise (analysis/dna_similarity/, PR #6).
+- [ ] Baseline CPU analysis: TF sequence-space embedding map (analysis/tf_embedding/).
+- [ ] Baseline CPU analysis: ΔminPAE re-derivation from released data (analysis/delta_minpae/).
 - [ ] Generation run via pecli.
 - [ ] Returned designs analyzed.
 - [ ] Figures + public writeup.
