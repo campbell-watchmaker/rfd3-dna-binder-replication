@@ -47,9 +47,9 @@ from this repo.
 |---|---|
 | `targets/prnp/` | PRNP-site duplex structure, ori-token placements, H-bond candidate atoms |
 | `specs/` | pecli pipeline specs for the binder block and specificity block |
-| `analysis/dna_similarity/` | "why specificity is hard" — B-DNA cross-sequence similarity |
-| `analysis/tf_embedding/` | TF binding-sequence-space map (Evo / ESM-2 + PCA) |
-| `analysis/delta_minpae/` | ΔminPAE re-derivation from the released summary data |
+| `analysis/dna_similarity/` | "why specificity is hard" — B-DNA cross-sequence similarity (done) |
+| `analysis/tf_embedding/` | TF binding-sequence-space map (Evo / ESM-2 + PCA) — *post-generation: overlays returned designs on the natural TF landscape* |
+| `analysis/delta_minpae/` | ΔminPAE re-derivation from the released summary data — *post-generation: validates the specificity metric before it is applied to our designs* |
 | `results/` | returned designs + per-design metrics |
 | `figures/` | publication-grade figures |
 | `docs/` | method notes, replication log, limitations |
