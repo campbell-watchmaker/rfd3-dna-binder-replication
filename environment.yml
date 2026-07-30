@@ -15,6 +15,7 @@ dependencies:
   - openmm         # open-source MD/energy-minimization (replaces Rosetta FastRelax)
   - pdbfixer       # structure prep for OpenMM (adds missing atoms/termini)
   - requests
+  - pytest         # testing framework (required for CI)
   - pip
   - pip:
       - fair-esm   # ESM-2 protein embeddings (TF/design sequence-space map)

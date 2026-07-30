@@ -1,0 +1,92 @@
+{
+  "session_start": "2026-07-30T17:16:40.795648",
+  "preflight": {
+    "offtarget_panel_validated": false,
+    "hbond_subsetting_decided": false,
+    "pecli_auth_verified": false,
+    "gpu_budget_estimated": false,
+    "sampler_config_smoke_test": false
+  },
+  "binder_block": {
+    "stage_0_fold_duplex": {
+      "done": false,
+      "timestamp": null,
+      "notes": ""
+    },
+    "stage_1_conditioning": {
+      "done": false,
+      "timestamp": null,
+      "notes": ""
+    },
+    "stage_2_rfd3na_specs": {
+      "done": false,
+      "timestamp": null,
+      "notes": ""
+    },
+    "stage_3_diffuse": {
+      "done": false,
+      "timestamp": null,
+      "notes": "n_designs: ?"
+    },
+    "stage_4_relax": {
+      "done": false,
+      "timestamp": null,
+      "notes": ""
+    },
+    "stage_5_ligandmpnn": {
+      "done": false,
+      "timestamp": null,
+      "notes": ""
+    },
+    "stage_6_refold": {
+      "done": false,
+      "timestamp": null,
+      "notes": "oracles: ?"
+    },
+    "stage_7_filter": {
+      "done": false,
+      "timestamp": null,
+      "notes": "pass_rate: ?"
+    }
+  },
+  "specificity_block": {
+    "stage_1_resample": {
+      "done": false,
+      "timestamp": null,
+      "notes": ""
+    },
+    "stage_2_ontarget_fold": {
+      "done": false,
+      "timestamp": null,
+      "notes": ""
+    },
+    "stage_3_allbyall_inputs": {
+      "done": false,
+      "timestamp": null,
+      "notes": ""
+    },
+    "stage_4_allbyall_fold": {
+      "done": false,
+      "timestamp": null,
+      "notes": ""
+    },
+    "stage_5_delta_minpae": {
+      "done": false,
+      "timestamp": null,
+      "notes": ""
+    }
+  },
+  "post_smoke_test": {
+    "metrics_match_paper_trends": false,
+    "no_crashes": false,
+    "file_handoffs_work": false,
+    "cost_estimated": false,
+    "decisions_reviewed": false
+  },
+  "decisions": {
+    "hbond_subsetting": null,
+    "oracle_selection": null,
+    "filter_thresholds": null
+  },
+  "notes": ""
+}
