@@ -92,6 +92,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--manifest", required=True)
     ap.add_argument("--download-dir", required=True)
+    ap.add_argument("--skip-status", action="store_true",
+                    help="don't call `pecli status` per fold; assume anything already "
+                         "downloaded is complete. One status call per fold dominates "
+                         "runtime on a large batch, and is redundant once the batch is "
+                         "known to have succeeded.")
     args = ap.parse_args()
 
     mpath = os.path.abspath(args.manifest)
@@ -106,12 +111,19 @@ def main():
     counts = {}
     collected, no_pae = 0, []
     for rec in todo:
-        st = status_of(rec["run_id"])
-        counts[st] = counts.get(st, 0) + 1
-        if st != "SUCCEEDED":
-            continue
         dest = os.path.join(args.download_dir, rec["fold_id"])
-        if not os.path.isdir(dest) or not os.listdir(dest):
+        already = os.path.isdir(dest) and os.listdir(dest)
+        if args.skip_status:
+            if not already:
+                counts["NOT_DOWNLOADED"] = counts.get("NOT_DOWNLOADED", 0) + 1
+                continue
+            counts["ASSUMED_OK"] = counts.get("ASSUMED_OK", 0) + 1
+        else:
+            st = status_of(rec["run_id"])
+            counts[st] = counts.get(st, 0) + 1
+            if st != "SUCCEEDED":
+                continue
+        if not already:
             rc, out = run(["pecli", "results", rec["run_id"], "--out", dest])
             if rc != 0:
                 no_pae.append((rec["fold_id"], "download failed: " + out.strip()[-200:]))
