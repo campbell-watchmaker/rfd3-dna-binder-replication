@@ -12,6 +12,11 @@ PAE file, per oracle:
             and the fold must be resubmitted with the flag)
   openfold3 <name>_seed_<s>_sample_<n>_confidences.json (written whenever the
             `pae_enabled` preset is on, which is the default)
+  esmfold2  TWO files, not one: <id>_pae.npy (float16 [N,N] matrix, 0-32 A) plus
+            <id>_pae_tokens.json (the per-token chain map). Both only exist if the
+            run set output.emit_pae=true (--emit-pae true); esmfold2 emitted
+            scalars only before pecli 41d504a. The .npy goes in `pae_path`, the
+            sidecar in `pae_tokens_path`.
 
 Usage:
     python collect_control_results.py --manifest folds/rf3/folds_manifest.json \
@@ -41,7 +46,20 @@ def status_of(run_id):
 
 
 def find_pae(root, oracle):
-    """Locate the per-token PAE file under a downloaded run directory."""
+    """Locate the per-token PAE file under a downloaded run directory.
+
+    Returns a path, or None. For esmfold2 the caller must ALSO call
+    find_pae_tokens(): its PAE is two files, not one.
+    """
+    if oracle == "esmfold2":
+        # <id>_pae.npy (float16 [N,N], 0-32 A) -- only present when the run was
+        # submitted with --emit-pae true (pecli #175); before that patch esmfold2
+        # emitted scalars only and minPAE was uncomputable.
+        cands = glob.glob(os.path.join(root, "**", "*_pae.npy"), recursive=True)
+        if not cands:
+            return None
+        cands.sort(key=lambda p: (p.count(os.sep), len(p)))
+        return cands[0]
     if oracle == "openfold3":
         # <fold>/seed_<s>/<fold>_seed_<s>_sample_<n>_confidences.json holds
         # plddt/pde/pae; the sibling *_confidences_aggregated.json is the summary
@@ -69,8 +87,22 @@ def find_pae(root, oracle):
     return cands[0]
 
 
+def find_pae_tokens(root):
+    """esmfold2 only: <id>_pae_tokens.json, the per-token chain map that goes with
+    the .npy matrix (it carries token_chain_ids + a `mapping` provenance string)."""
+    cands = glob.glob(os.path.join(root, "**", "*_pae_tokens.json"), recursive=True)
+    if not cands:
+        return None
+    cands.sort(key=lambda p: (p.count(os.sep), len(p)))
+    return cands[0]
+
+
 def find_summary(root, oracle):
-    if oracle == "openfold3":
+    if oracle == "esmfold2":
+        # complex_confidence.json carries ptm/iptm/pair_chains_iptm and, with
+        # emit_pae, mean_pae (+ pair_chains_mean_pae when the token map is exact).
+        pat = "complex_confidence.json"
+    elif oracle == "openfold3":
         pat = "*_confidences_aggregated.json"
     else:
         pat = "*_summary_confidences.json" if oracle == "rf3" else "*summary_confidence*.json"
@@ -92,7 +124,7 @@ def _merge_write(mpath, updated):
     """
     on_disk = json.load(open(mpath))
     by_id = {r["fold_id"]: r for r in on_disk}
-    OWNED = ("pae_path", "iptm", "ptm", "plddt")
+    OWNED = ("pae_path", "pae_tokens_path", "iptm", "ptm", "plddt", "mean_pae")
     for rec in updated:
         tgt = by_id.get(rec["fold_id"])
         if tgt is None:
@@ -146,12 +178,25 @@ def main():
                 continue
         pae = find_pae(dest, rec["oracle"])
         if not pae:
-            no_pae.append((rec["fold_id"],
-                           "no per-token PAE in output"
-                           + (" -- protenix run lacked --need-atom-confidence true"
-                              if rec["oracle"] == "protenix" else "")))
+            hint = ""
+            if rec["oracle"] == "protenix":
+                hint = " -- protenix run lacked --need-atom-confidence true"
+            elif rec["oracle"] == "esmfold2":
+                hint = " -- esmfold2 run lacked --emit-pae true"
+            no_pae.append((rec["fold_id"], "no per-token PAE in output" + hint))
             continue
         rec["pae_path"] = os.path.abspath(pae)
+        if rec["oracle"] == "esmfold2":
+            # The matrix alone is unsliceable: the chain of each token lives in the
+            # sidecar. Record it, but do NOT make it fatal here -- the metrics step
+            # decides whether the map is usable (it can fall back positionally for a
+            # monoatomic-ion composition) and is the right place to refuse.
+            tok = find_pae_tokens(dest)
+            if tok:
+                rec["pae_tokens_path"] = os.path.abspath(tok)
+            else:
+                no_pae.append((rec["fold_id"],
+                               "found _pae.npy but no _pae_tokens.json sidecar"))
         s = find_summary(dest, rec["oracle"])
         if s:
             try:
@@ -159,7 +204,8 @@ def main():
                 # each oracle names the same scalar differently: rf3/protenix
                 # write overall_plddt, openfold3 writes avg_plddt
                 for k_out, keys in (("iptm", ("iptm",)), ("ptm", ("ptm",)),
-                                    ("plddt", ("overall_plddt", "avg_plddt", "plddt"))):
+                                    ("plddt", ("overall_plddt", "avg_plddt", "plddt")),
+                                    ("mean_pae", ("mean_pae",))):
                     for k_in in keys:
                         if k_in in sd:
                             rec[k_out] = round(float(sd[k_in]), 4)

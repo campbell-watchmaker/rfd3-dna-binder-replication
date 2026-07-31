@@ -45,10 +45,31 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "scripts"))
 from control_panel import build_panel, FIXED_BP  # noqa: E402
 from compute_delta_minpae import _norm_chain  # noqa: E402
+from compute_control_metrics import _load_esmfold2  # noqa: E402  (reuse the guarded loader)
 
 
 def strand_token_indices(rec, d):
     """Return (protein_mask, [(strand_name, [token indices 5'->3'])]) for one fold."""
+    if rec["oracle"] == "esmfold2":
+        # _load_esmfold2 owns the float16 cast, the sidecar contract and the
+        # guarded positional fallback; only the per-STRAND split is extra here.
+        pae, prot, dna, mapping = _load_esmfold2(rec)
+        L = len(d["sense"])
+        tok = json.load(open(rec["pae_tokens_path"]))
+        ids = tok.get("token_chain_ids")
+        strands = []
+        if ids is not None:
+            ids = np.asarray([_norm_chain(c) for c in ids])
+            for name, cid in zip(("sense", "antisense"), rec["dna_chains"]):
+                strands.append((name, np.where(ids == _norm_chain(cid))[0]))
+        else:
+            # fallback: _load_esmfold2 already asserted the total token count, so
+            # the DNA block is [protein | sense | antisense | ligands] in spec order.
+            didx = np.where(dna)[0]
+            strands.append(("sense", didx[:L]))
+            strands.append(("antisense", didx[L:2 * L]))
+        return pae, prot, strands
+
     with open(rec["pae_path"]) as f:
         blob = json.load(f)
 

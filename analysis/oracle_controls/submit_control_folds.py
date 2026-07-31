@@ -38,6 +38,12 @@ ORACLE_FLAGS = {
     # two oracles). Seed + single diffusion sample match rf3/protenix.
     "openfold3": ["--presets", "predict,pae_enabled,low_mem",
                   "--seeds", "42", "--num-diffusion-samples", "1"],
+    # esmfold2: --emit-pae true is REQUIRED and is the whole reason this oracle can
+    # join the panel at all (pecli 41d504a) -- without it the run writes ptm/iptm/
+    # plddt only and minPAE is uncomputable. Seed + one sample match the others.
+    # No MSA flag exists: esmfold2 declares no requires=["msa"], so a bare fold
+    # never auto-routes to a paid msa pipeline.
+    "esmfold2": ["--emit-pae", "true", "--seed", "42", "--num-diffusion-samples", "1"],
 }
 
 

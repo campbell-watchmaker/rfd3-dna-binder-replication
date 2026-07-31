@@ -166,7 +166,53 @@ def build_openfold3(fold_id, protein_seq, copies, ligands, sense, anti):
     return spec, prot_chains, dna_chains
 
 
-BUILDERS = {"rf3": build_rf3, "protenix": build_protenix, "openfold3": build_openfold3}
+def build_esmfold2(fold_id, protein_seq, copies, ligands, sense, anti):
+    """esmfold2 complex JSON: {"id": ..., "chains": [{id, type, sequence|ccd}, ...]}.
+
+    Schema verified against pecli/tools/_validate.py::_validate_esmfold2_complex,
+    containers/esmfold2/pipeline.py::build_spi, the esmfold2 guide, and two real
+    S3 inputs (runs 20260702-131941-8f2962, 20260701-180522-c11e1c) -- all of the
+    shape protein + dna + {"type":"ligand","ccd":["ZN"]}.
+
+      * `type` is one of protein/dna/rna/ligand; polymers carry `sequence`,
+        ligands carry `ccd` (a LIST of CCD codes) or `smiles`.
+      * dsDNA: esmfold2 does NOT auto-generate the complement, so both strands
+        are written as separate `dna` chains (the validator warns if only one is
+        given). This confirms specs/binder_block/PIPELINE.md's claim.
+      * Copies of one protein are REPEATED chains with distinct ids -- there is
+        no count field anywhere in the schema.
+
+    LIGANDS: all Zn go in ONE ligand chain as ccd ["ZN","ZN","ZN"], NOT three
+    ligand chains. This is deliberate and load-bearing for the metric, not
+    cosmetic: containers/esmfold2/pipeline.py::_token_chain_ids can only build the
+    per-token chain map when there is at most ONE ligand chain (a ligand's token
+    count depends on its atoms, so with two or more it refuses to guess and
+    writes token_chain_ids = null / mapping = "unavailable: ..."). With a single
+    ligand chain it assigns every remaining token to that chain and the map stays
+    exact -- so Zif268's 3 Zn cost us nothing.
+
+    NO MSA CARRIER: esmfold2 declares no requires=["msa"] (pecli/tools/esmfold2.py),
+    so a bare fold never auto-routes to a paid msa pipeline and there is no a3m to
+    supply -- unlike rf3/protenix/openfold3 above.
+    """
+    letters = iter(_chain_letters(64))
+    chains, prot_chains, dna_chains = [], [], []
+    for _ in range(copies):
+        cid = next(letters)
+        chains.append({"id": cid, "type": "protein", "sequence": protein_seq})
+        prot_chains.append(cid)
+    for strand in (sense, anti):
+        cid = next(letters)
+        chains.append({"id": cid, "type": "dna", "sequence": strand})
+        dna_chains.append(cid)
+    if ligands:
+        chains.append({"id": next(letters), "type": "ligand", "ccd": list(ligands)})
+    spec = {"id": fold_id, "chains": chains}
+    return spec, prot_chains, dna_chains
+
+
+BUILDERS = {"rf3": build_rf3, "protenix": build_protenix, "openfold3": build_openfold3,
+            "esmfold2": build_esmfold2}
 
 
 def main():
@@ -177,6 +223,10 @@ def main():
                     help="curated_controls.json (default: alongside this script)")
     ap.add_argument("--only", default=None,
                     help="restrict to Protein:dna_id (for a single cheap probe fold)")
+    ap.add_argument("--klass", default=None,
+                    help="restrict to one control class (e.g. `specific` for the 5 TFs "
+                         "only). Any class left out cannot participate in the "
+                         "binder/non-binder comparison -- say so when reporting.")
     args = ap.parse_args()
 
     here = os.path.dirname(os.path.abspath(__file__))
@@ -193,6 +243,8 @@ def main():
     os.makedirs(args.out_dir, exist_ok=True)
     manifest, n = [], 0
     for c in controls:
+        if args.klass and c["klass"] != args.klass:
+            continue
         for dna_id, d in panel.items():
             fold_id = f"{c['label']}__{dna_id}"
             if args.only and args.only != f"{c['label']}:{dna_id}":
@@ -221,6 +273,9 @@ def main():
                 "dna_len": len(d["sense"]),
                 "expected_tokens": c["protein_length"] * c["copies"] + 2 * len(d["sense"]),
                 "pae_path": "FILL_AFTER_FOLD",
+                # esmfold2 alone splits its PAE across two files (matrix .npy +
+                # token-map .json); the other oracles leave this null.
+                "pae_tokens_path": None,
                 "run_id": None,
             })
             n += 1

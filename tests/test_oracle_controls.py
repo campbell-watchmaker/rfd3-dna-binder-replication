@@ -232,3 +232,90 @@ def test_delta_minpae_ranks_specific_above_promiscuous():
     assert d_spec > d_prom
     assert d_spec == pytest.approx(6.0)
     assert d_prom == pytest.approx(0.1)
+
+
+# --------------------------------------------------------------------------
+# esmfold2 (complex JSON emitter + two-file PAE)
+# --------------------------------------------------------------------------
+
+def test_esmfold2_writes_both_dna_strands():
+    """esmfold2 does NOT auto-generate the complementary strand (verified against
+    pecli's _validate_esmfold2_complex, which warns when given exactly one), so a
+    duplex must be two dna chains."""
+    spec, prot, dna = bcf.build_esmfold2("t", "MKV", 1, [], "ACGTAA", "TTACGT")
+    dchains = [c for c in spec["chains"] if c["type"] == "dna"]
+    assert len(dchains) == 2 and len(dna) == 2
+    assert dchains[0]["sequence"] != dchains[1]["sequence"]
+    assert isinstance(spec, dict) and spec["id"] == "t"   # object, not a list
+
+
+def test_esmfold2_puts_all_zinc_in_one_ligand_chain():
+    """Two or more ligand chains make the container refuse to emit a token->chain
+    map (token_chain_ids = null), which is what slices the PAE. One ligand chain
+    with a repeated ccd keeps the map exact."""
+    spec, _, _ = bcf.build_esmfold2("t", "MKV", 1, ["ZN", "ZN", "ZN"], "ACGT", "ACGT")
+    lig = [c for c in spec["chains"] if c["type"] == "ligand"]
+    assert len(lig) == 1, "multiple ligand chains would null out token_chain_ids"
+    assert lig[0]["ccd"] == ["ZN", "ZN", "ZN"]
+
+
+def test_esmfold2_homodimer_is_two_chains_with_distinct_ids():
+    spec, prot, dna = bcf.build_esmfold2("t", "MKV", 2, [], "ACGT", "ACGT")
+    pchains = [c for c in spec["chains"] if c["type"] == "protein"]
+    assert len(pchains) == 2 and len({c["id"] for c in pchains}) == 2
+    assert prot == ["A", "B"] and dna == ["C", "D"]
+    assert all("count" not in c for c in spec["chains"]), "no count field in the schema"
+
+
+def test_esmfold2_carries_no_msa_field():
+    """esmfold2 declares no requires=["msa"], so there is no carrier to add; an
+    unknown extra key would just be ignored (or rejected) by the container."""
+    spec, _, _ = bcf.build_esmfold2("t", "MKV", 1, [], "ACGT", "ACGT")
+    blob = json.dumps(spec)
+    assert "msa" not in blob.lower() and "a3m" not in blob.lower()
+
+
+def _esmfold2_rec(tmp_path, ids, mapping, n):
+    pae = (np.arange(n * n, dtype="float16").reshape(n, n) % 30).astype("float16")
+    np.save(tmp_path / "x_pae.npy", pae)
+    (tmp_path / "x_pae_tokens.json").write_text(
+        json.dumps({"token_chain_ids": ids, "mapping": mapping}))
+    return {"fold_id": "t", "oracle": "esmfold2",
+            "pae_path": str(tmp_path / "x_pae.npy"),
+            "pae_tokens_path": str(tmp_path / "x_pae_tokens.json"),
+            "protein_chains": ["A"], "dna_chains": ["B", "C"],
+            "protein_len": 5, "protein_copies": 1, "dna_len": 4,
+            "ligands": ["ZN", "ZN", "ZN"]}
+
+
+def test_esmfold2_pae_is_cast_from_float16_and_sliced_by_token_map(tmp_path):
+    import compute_control_metrics as ccm
+    ids = ["A"] * 5 + ["B"] * 4 + ["C"] * 4 + ["D"] * 3
+    rec = _esmfold2_rec(tmp_path, ids, "positional: one token per polymer residue", 16)
+    pae, prot, dna, mapping = ccm._load_esmfold2(rec)
+    assert pae.dtype == np.float32, "float16 arithmetic would quietly lose precision"
+    assert int(prot.sum()) == 5 and int(dna.sum()) == 8
+    assert mapping == "exact"
+
+
+def test_esmfold2_falls_back_positionally_only_when_the_total_reconciles(tmp_path):
+    """ZN is monoatomic, so 5 + 4 + 4 + 3x1 = 16 tokens is fully determinate and
+    the fallback is sound; any other total means the composition is not what we
+    think it is and the fold must yield no number at all."""
+    import compute_control_metrics as ccm
+    rec = _esmfold2_rec(tmp_path, None, "unavailable: 3 ligand chain(s)", 16)
+    pae, prot, dna, mapping = ccm._load_esmfold2(rec)
+    assert mapping == "positional_fallback"
+    assert int(prot.sum()) == 5 and int(dna.sum()) == 8
+
+    bad = _esmfold2_rec(tmp_path, None, "unavailable: 3 ligand chain(s)", 20)
+    with pytest.raises(ValueError, match="Refusing to guess"):
+        ccm._load_esmfold2(bad)
+
+
+def test_esmfold2_refuses_a_matrix_with_no_token_sidecar(tmp_path):
+    import compute_control_metrics as ccm
+    rec = _esmfold2_rec(tmp_path, ["A"] * 16, "positional: ...", 16)
+    rec["pae_tokens_path"] = None
+    with pytest.raises(ValueError, match="sidecar"):
+        ccm._load_esmfold2(rec)

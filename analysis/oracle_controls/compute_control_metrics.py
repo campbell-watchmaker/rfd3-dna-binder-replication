@@ -51,6 +51,13 @@ protenix  <name>_full_data_sample_<rank>.json   (only when the run set
           is therefore resolved positionally, from the order the entities were
           written into the input JSON, which the manifest records.
 
+esmfold2  TWO files: <id>_pae.npy (float16 [N,N], Angstrom on a 0-32 scale --
+          cast to float32) and <id>_pae_tokens.json (token_chain_ids + a `mapping`
+          provenance string). Only exists for runs submitted with --emit-pae true.
+          token_chain_ids is null when the container could not reconcile token
+          boundaries (multiple ligand chains); see _load_esmfold2 for the guarded
+          positional fallback used in that case.
+
 Usage:
     python compute_control_metrics.py --manifest folds/rf3/folds_manifest.json \
         --out-csv results/oracle_controls/rf3_folds.csv \
@@ -69,8 +76,94 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from compute_delta_minpae import _norm_chain, min_pae  # noqa: E402  (reuse, don't duplicate)
 
 
+def _load_esmfold2(rec: dict):
+    """esmfold2: a float16 .npy matrix + a separate token-map JSON.
+
+    The matrix is float16 Angstrom on a 0-32 scale and must be cast to float32
+    before any arithmetic. It is deliberately NOT symmetric (pae[i, j] is the
+    error at j when aligned on i, the AlphaFold convention), which is fine here:
+    min_pae() takes the minimum over BOTH pae[prot, dna] and pae[dna, prot], and a
+    min over a block is direction-agnostic. Do not symmetrise it.
+
+    Note also that PAE saturates near 32 A: a block at the ceiling means "no
+    confident relative placement", not 31.8 A of measured error.
+    """
+    pae = np.load(rec["pae_path"]).astype(np.float32)
+    n = pae.shape[0]
+
+    tok_path = rec.get("pae_tokens_path")
+    if not tok_path or not os.path.exists(tok_path):
+        raise ValueError(
+            f"{rec['fold_id']}: esmfold2 PAE matrix without its _pae_tokens.json "
+            "sidecar -- the token->chain map is required to slice the matrix.")
+    tok = json.load(open(tok_path))
+    ids = tok.get("token_chain_ids")
+
+    exp_p = rec["protein_len"] * rec["protein_copies"]
+    exp_d = 2 * rec["dna_len"]
+    n_lig = len(rec.get("ligands") or [])
+
+    if ids is None:
+        # FALLBACK. The guide's advice ("don't assume a positional mapping when the
+        # map says unavailable") guards against an UNKNOWN ligand atom count -- a
+        # ligand's token count is what the container cannot reconstruct. That does
+        # not apply here: every ligand in this panel is ZN, which is MONOATOMIC, so
+        # each Zn contributes exactly 1 token and the composition is fully
+        # determinate (Zif268 = 90 protein + 24 + 24 DNA + 3x1 Zn = 141 tokens).
+        # We therefore resolve positionally -- chains are tokenised one token per
+        # residue in spec order, polymers first, then ligands -- but ONLY behind a
+        # hard total-token assertion. If the total disagrees the composition is not
+        # what we think it is, and we report no number rather than a plausible-
+        # looking wrong one.
+        expected = exp_p + exp_d + n_lig
+        if n != expected:
+            raise ValueError(
+                f"{rec['fold_id']}: esmfold2 token map unavailable "
+                f"({tok.get('mapping')!r}) and the positional fallback does not "
+                f"reconcile: PAE is [{n},{n}] but the input implies {exp_p} protein + "
+                f"{exp_d} DNA + {n_lig} monoatomic ion = {expected} tokens. "
+                "Refusing to guess -- no metric for this fold.")
+        prot = np.zeros(n, dtype=bool)
+        dna = np.zeros(n, dtype=bool)
+        prot[:exp_p] = True
+        dna[exp_p:exp_p + exp_d] = True
+        return pae, prot, dna, "positional_fallback"
+
+    ids = np.asarray([_norm_chain(c) for c in ids])
+    if ids.shape[0] != n:
+        raise ValueError(
+            f"{rec['fold_id']}: token_chain_ids has {ids.shape[0]} entries but the "
+            f"PAE is [{n},{n}].")
+    want_p = {_norm_chain(c) for c in rec["protein_chains"]}
+    want_d = {_norm_chain(c) for c in rec["dna_chains"]}
+    prot = np.isin(ids, list(want_p))
+    dna = np.isin(ids, list(want_d))
+    if not prot.any() or not dna.any():
+        raise ValueError(
+            f"{rec['fold_id']}: chain labels {sorted(set(ids.tolist()))} did not match "
+            f"protein={sorted(want_p)} / dna={sorted(want_d)}")
+    if int(prot.sum()) != exp_p or int(dna.sum()) != exp_d:
+        raise ValueError(
+            f"{rec['fold_id']}: token map gave protein={int(prot.sum())} (expected "
+            f"{exp_p}) and dna={int(dna.sum())} (expected {exp_d}) -- the map and the "
+            "submitted sequences disagree; do not trust the metric.")
+    # "exact" = the container's own token_chain_ids were used, as opposed to the
+    # guarded "positional_fallback" above. (The container spells an exact map
+    # "positional: ..." in its `mapping` string; don't reuse that word here, it
+    # would read as the fallback.)
+    return pae, prot, dna, "exact"
+
+
 def load_pae_and_masks(rec: dict):
-    """Return (pae, prot_mask, dna_mask) for one fold, per-oracle."""
+    """Return (pae, prot_mask, dna_mask) for one fold, per-oracle.
+
+    esmfold2 is handled by _load_esmfold2 (its PAE is a .npy + a sidecar, not one
+    JSON); use that directly if you need the token-map provenance string.
+    """
+    if rec["oracle"] == "esmfold2":
+        pae, prot, dna, _mapping = _load_esmfold2(rec)
+        return pae, prot, dna
+
     path = rec["pae_path"]
     with open(path) as f:
         d = json.load(f)
@@ -159,7 +252,14 @@ def main():
     rows, errors = [], []
     for rec in done:
         try:
-            pae, prot, dna = load_pae_and_masks(rec)
+            if rec["oracle"] == "esmfold2":
+                # keep the token-map provenance in the table: a row scored off the
+                # positional fallback must be visibly flagged, not silently equal
+                # to one scored off an exact map.
+                pae, prot, dna, token_map = _load_esmfold2(rec)
+            else:
+                pae, prot, dna = load_pae_and_masks(rec)
+                token_map = ""
             mp = min_pae(pae, prot, dna)
             rows.append({
                 "fold_id": rec["fold_id"], "protein": rec["protein"], "klass": rec["klass"],
@@ -167,6 +267,7 @@ def main():
                 "oracle": rec["oracle"], "min_pae": round(mp, 4),
                 "n_protein_tokens": int(prot.sum()), "n_dna_tokens": int(dna.sum()),
                 "iptm": rec.get("iptm"), "ptm": rec.get("ptm"), "plddt": rec.get("plddt"),
+                "token_map": token_map,
             })
         except Exception as e:  # a bad fold must not silently vanish from the table
             errors.append(f"{rec['fold_id']}: {e}")

@@ -197,16 +197,100 @@ of complex size** (fixed ~2.3 GB checkpoint fetch dominates), so unlike protenix
 it does not get cheaper for small complexes. $0.31/fold, i.e. ~14× rf3 and ~3×
 protenix for the same panel.
 
+## esmfold2 arm — best discrimination *and* best calibration, but 10× rf3's cost
+
+esmfold2 was originally excluded for emitting no PAE. A pecli patch
+(`feat(esmfold2): opt-in per-token PAE output`, #175) added `--emit-pae`, which
+writes `<id>_pae.npy` (float16, 0–32 Å) plus an `<id>_pae_tokens.json` sidecar, so
+the exclusion was reopened on new evidence.
+
+25 folds (5 specific TFs × 5 targets — see the scope gap below). MSA-free is
+automatic here: esmfold2 declares no `requires=["msa"]`, so there is no carrier to
+add and no #174 auto-routing risk.
+
+| TF | on-target minPAE | ΔminPAE | argmin | in-motif |
+|---|---|---|---|---|
+| Zif268 | **0.71** | +2.92 | ✓ | yes |
+| TBP | **1.13** | +0.51 | ✓ | yes |
+| LambdaRep | **1.38** | +1.60 | ✓ | yes |
+| Engrailed | 2.38 | +0.62 | ✓ | yes |
+| MAX_bHLH | 5.09 | +1.62 | ✓ | yes |
+
+**2 of 5 clear the paper's `minPAE < 1.25` gate** (vs 1 of 5 on rf3), and on-target
+interfaces land in-motif 5/5 (88% across all 25 folds, baseline 38.3%).
+
+The striking single number: **TBP scores 1.13 with a correct argmin.** TBP reads
+the TATA box through the *minor* groove and kinks the duplex ~80°; it was flagged
+during curation as a stress test, not an easy positive, and it fails on every
+other oracle (rf3 15.73, protenix 8.84, openfold3 14.55). esmfold2 is the only one
+of the four that models it.
+
+### Two caveats that must travel with the 5/5
+
+Both came out of the adversarial verification pass, not from the analysis:
+
+1. **It is not apples-to-apples as raw numbers.** A $6.00 cap dropped 15 of the 40
+   scoped folds — `prnp`, `scramble` and `polygc` for all five TFs — so esmfold2's
+   argmin was scored against 4 off-targets while rf3/protenix/openfold3 were scored
+   against 7. The dropped three are arguably the *most* adversarial available
+   (`polygc` is a direct GC-rich distractor for the GC-rich Zif268 site;
+   `scramble` is the length-matched neutral). **Rescored on the matched 5-target
+   panel: esmfold2 5/5, rf3 4/5, protenix 3/5, openfold3 0/5** — protenix gains
+   TBP, because the two off-targets that beat `tata` were among the dropped three.
+2. **One of the five hits rests on a per-target main effect.** The 5×5 minPAE
+   matrix has strong column effects (per-target means 3.34–7.18 Å) and row effects
+   (per-TF means 1.78–10.76 Å). After double-centring to strip both,
+   **esmfold2 is 4/5** — LambdaRep's hit does not survive, because `lambda_OL1` is
+   the globally easiest target in the panel. Zif268, MAX_bHLH, Engrailed and TBP
+   do survive. For comparison rf3 is also 4/5 double-centred, while protenix
+   collapses to 1/5.
+
+So the defensible claim is **esmfold2 ≈ rf3 on discrimination, better than rf3 on
+absolute calibration, at 10× the cost per fold** — not "esmfold2 beats rf3".
+
+### Verification
+
+Verdict **CONFIRMED**. The token mapping was triple-corroborated: token counts
+against known composition; chains classified by CIF `label_comp_id` composition
+rather than trusting input order (so a transposed protein/DNA block would have
+been caught); and the container's own `pair_chains_mean_pae` reproduced from
+independently built masks to |diff| ≤ 5e-4, which a wrong map could not do. All 25
+minPAE values and all 5 summary rows reproduce bit-exactly from a from-scratch
+numpy/json path that never imports the analysis code.
+
+Also checked and clean: no positional fallback was needed anywhere
+(`token_chain_ids` non-null in 25/25 — the emitter putting all 3 Zn in **one**
+ligand chain, `ccd: ["ZN","ZN","ZN"]`, is what kept the map exact, since the
+container only builds a token map when there is at most one ligand chain); not
+saturated (fraction of interface entries ≥31 Å is 0.00018, global max 31.33);
+asymmetry intact and nothing symmetrised (max |pae − paeᵀ| is 13.8–22.9 Å per
+fold); no ties (smallest margin TBP 0.51 Å, ~4× protenix's tightest correct call);
+and all 25 protein/DNA sequences read back out of the CIFs match the panel exactly.
+
 ## Three-oracle summary
 
-| oracle | argmin on own site | binder/non-binder gap | $/fold |
-|---|---|---|---|
-| **rf3** | **4/5** | **+9.12 Å** (excl. TBP) | **$0.022** |
-| protenix | 2/5 | −2.97 Å (overlap) | $0.042 |
-| openfold3 | 0/5 | not measured (cap) | $0.31 |
+| oracle | argmin, 8-target panel | argmin, matched 5-target | double-centred | binder/non-binder gap | $/fold |
+|---|---|---|---|---|---|
+| **rf3** | **4/5** | 4/5 | **4/5** | **+9.12 Å** (excl. TBP) | **$0.022** |
+| protenix | 2/5 | 3/5 | 1/5 | −2.97 Å (overlap) | $0.042 |
+| openfold3 | 0/5 | 0/5 | — | not measured (cap) | $0.31 |
+| esmfold2 | not run | **5/5** | **4/5** | not measured (scope) | $0.22 |
 
-rf3 is simultaneously the most discriminative and the cheapest, by a wide margin
-on both.
+Read the columns, not just the first one. The 8-target panel is the only column
+where three oracles are directly comparable; the matched 5-target column is the
+only one that includes esmfold2; the double-centred column removes per-TF and
+per-target main effects and is the most conservative.
+
+**rf3 and esmfold2 tie on discrimination** (4/5 double-centred). esmfold2 has
+better absolute calibration (2/5 vs 1/5 clearing the paper's 1.25 gate, and it is
+the only oracle that models TBP at all). rf3 is **10× cheaper** and is the only
+oracle with a measured binder/non-binder separation. protenix and openfold3 are
+behind on every column.
+
+For the specificity block that argues for **rf3 as primary** on cost and on the
+one axis only it has measured, with **esmfold2 as the cross-check** in place of
+protenix — a change from the earlier conclusion, on the strength of the new
+`--emit-pae` capability.
 
 ## Consequence for the pipeline
 
