@@ -75,3 +75,53 @@ def csv_dicts(path):
     import csv
     with open(path) as f:
         yield from csv.DictReader(f)
+
+
+# --- panel-separation regression (corrected 2026-07-31) --------------------
+# The paper's ΔminPAE all-by-all folds against on-target + other Table 1 targets.
+# The single-base-variant sweep is wet-lab characterisation of an already-selected
+# binder, NOT the ranking panel. Conflating them inflated the all-by-all ~4x AND
+# silently changed the metric: ΔminPAE is a MINIMUM over off-targets, so including
+# sequences one base from the on-target turns it into a near-worst-case statistic.
+
+def _panel(tmp_path, panel):
+    import subprocess
+    out = tmp_path / f"off_{panel}.json"
+    subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "..",
+                                                 "scripts", "make_offtarget_set.py"),
+                    "--on-target", "TGAGGAGAGGAG", "--panel", panel, "--out", str(out)],
+                   check=True, capture_output=True)
+    return json.load(open(out))
+
+
+def test_ranking_panel_excludes_single_base_variants(tmp_path):
+    b = _panel(tmp_path, "ranking")
+    kinds = {e["kind"] for e in b["offtargets"]}
+    assert "sbs" not in kinds, "single-base variants must not be in the ranking panel"
+    assert kinds == {"on_target", "decoy"}
+    assert b["n_sbs"] == 0 and b["n_decoys"] > 0
+
+
+def test_ranking_panel_is_the_default(tmp_path):
+    import subprocess
+    out = tmp_path / "default.json"
+    subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "..",
+                                                 "scripts", "make_offtarget_set.py"),
+                    "--on-target", "TGAGGAGAGGAG", "--out", str(out)],
+                   check=True, capture_output=True)
+    assert json.load(open(out))["panel"] == "ranking"
+
+
+def test_sbs_panel_still_available_and_complete(tmp_path):
+    b = _panel(tmp_path, "sbs")
+    sbs = [e for e in b["offtargets"] if e["kind"] == "sbs"]
+    assert len(sbs) == 3 * 12, "sbs panel must still cover every position x every alt base"
+    assert not [e for e in b["offtargets"] if e["kind"] == "decoy"]
+
+
+def test_ranking_panel_is_much_cheaper_than_the_old_conflated_one(tmp_path):
+    rank = _panel(tmp_path, "ranking")
+    both = _panel(tmp_path, "both")
+    assert len(rank["offtargets"]) < len(both["offtargets"]) / 3, (
+        "the corrected ranking panel should be several-fold smaller than the "
+        "old decoys+sbs union")

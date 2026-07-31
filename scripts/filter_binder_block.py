@@ -155,9 +155,25 @@ def main():
                     help="JSON list of {design_id, oracle, design_path, refold_path, iptm?, runtime_s?, gpu?}")
     ap.add_argument("--out", required=True, help="passers.csv")
     ap.add_argument("--oracle-comparison", required=True, help="oracle_comparison.csv (all rows)")
-    ap.add_argument("--rmsd-gate", type=float, default=3.0)
-    ap.add_argument("--iptm-gate", type=float, default=0.7)
+    ap.add_argument("--stage", choices=["pre_resample", "post_resample"],
+                    default="post_resample",
+                    help="Which binder-block checkpoint this is. The paper gates TWICE: "
+                         "pre_resample keeps DNA-aligned RMSD < 8 A to decide what goes into "
+                         "LigandMPNN resampling (no ipTM gate at that point); post_resample "
+                         "applies RMSD < 3 A + ipTM > 0.7 to the resampled folds.")
+    ap.add_argument("--rmsd-gate", type=float, default=None,
+                    help="override the stage default (8.0 pre_resample, 3.0 post_resample)")
+    ap.add_argument("--iptm-gate", type=float, default=0.7,
+                    help="ignored at --stage pre_resample")
     args = ap.parse_args()
+
+    # Paper sequence (Methods, "Binder block"): fold -> RMSD < 8 A -> LigandMPNN
+    # resample -> fold -> RMSD < 3 A, ipTM > 0.7, high H-bond counts. The 8 A gate
+    # was missing here, which would have sent every diffused backbone into
+    # resampling instead of only the self-consistent ones.
+    if args.rmsd_gate is None:
+        args.rmsd_gate = 8.0 if args.stage == "pre_resample" else 3.0
+    use_iptm = args.stage == "post_resample"
 
     jobs = json.load(open(args.manifest))
     all_rows = []
@@ -180,8 +196,11 @@ def main():
         w.writerows(all_rows)
 
     def passes(r):
-        return (r["dna_aligned_ca_rmsd"] is not None and r["dna_aligned_ca_rmsd"] < args.rmsd_gate
-                and r.get("iptm") is not None and r["iptm"] > args.iptm_gate)
+        if r["dna_aligned_ca_rmsd"] is None or r["dna_aligned_ca_rmsd"] >= args.rmsd_gate:
+            return False
+        if not use_iptm:
+            return True
+        return r.get("iptm") is not None and r["iptm"] > args.iptm_gate
     passers = sorted((r for r in all_rows if passes(r)),
                      key=lambda r: (-(r["iptm"] or 0), r["dna_aligned_ca_rmsd"]))
     with open(args.out, "w", newline="") as f:
@@ -190,7 +209,11 @@ def main():
         w.writerows(passers)
 
     print(f"analyzed {len(all_rows)} (design,oracle) rows -> {args.oracle_comparison}")
-    print(f"{len(passers)} passers (RMSD<{args.rmsd_gate}, ipTM>{args.iptm_gate}) -> {args.out}")
+    gate = f"RMSD<{args.rmsd_gate}" + (f", ipTM>{args.iptm_gate}" if use_iptm else " (no ipTM gate)")
+    print(f"stage={args.stage}: {len(passers)} passers ({gate}) -> {args.out}")
+    if args.stage == "pre_resample":
+        print("  -> feed these to LigandMPNN resampling, then re-run with "
+              "--stage post_resample on the resampled folds")
 
 
 if __name__ == "__main__":
