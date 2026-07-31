@@ -10,6 +10,8 @@ PAE file, per oracle:
   protenix  <name>_full_data_sample_<rank>.json (ONLY if the run set
             output.need_atom_confidence=true; otherwise no per-token PAE exists
             and the fold must be resubmitted with the flag)
+  openfold3 <name>_seed_<s>_sample_<n>_confidences.json (written whenever the
+            `pae_enabled` preset is on, which is the default)
 
 Usage:
     python collect_control_results.py --manifest folds/rf3/folds_manifest.json \
@@ -40,6 +42,17 @@ def status_of(run_id):
 
 def find_pae(root, oracle):
     """Locate the per-token PAE file under a downloaded run directory."""
+    if oracle == "openfold3":
+        # <fold>/seed_<s>/<fold>_seed_<s>_sample_<n>_confidences.json holds
+        # plddt/pde/pae; the sibling *_confidences_aggregated.json is the summary
+        # (scalars only) and must not be picked as the PAE.
+        cands = [p for p in glob.glob(os.path.join(root, "**", "*_confidences.json"),
+                                      recursive=True)
+                 if "aggregated" not in os.path.basename(p)]
+        if not cands:
+            return None
+        cands.sort()  # sample_1 is the first (and, at 1 sample/seed, only) one
+        return cands[0]
     if oracle == "rf3":
         # prefer the top-level (best-ranked) confidences over per-sample copies
         cands = [p for p in glob.glob(os.path.join(root, "**", "*_confidences.json"),
@@ -57,7 +70,10 @@ def find_pae(root, oracle):
 
 
 def find_summary(root, oracle):
-    pat = "*_summary_confidences.json" if oracle == "rf3" else "*summary_confidence*.json"
+    if oracle == "openfold3":
+        pat = "*_confidences_aggregated.json"
+    else:
+        pat = "*_summary_confidences.json" if oracle == "rf3" else "*summary_confidence*.json"
     cands = glob.glob(os.path.join(root, "**", pat), recursive=True)
     if not cands:
         return None
@@ -140,12 +156,14 @@ def main():
         if s:
             try:
                 sd = json.load(open(s))
-                for k_out, k_in in (("iptm", "iptm"), ("ptm", "ptm"),
-                                    ("plddt", "overall_plddt")):
-                    if k_in in sd:
-                        rec[k_out] = round(float(sd[k_in]), 4)
-                    elif k_out in sd:
-                        rec[k_out] = round(float(sd[k_out]), 4)
+                # each oracle names the same scalar differently: rf3/protenix
+                # write overall_plddt, openfold3 writes avg_plddt
+                for k_out, keys in (("iptm", ("iptm",)), ("ptm", ("ptm",)),
+                                    ("plddt", ("overall_plddt", "avg_plddt", "plddt"))):
+                    for k_in in keys:
+                        if k_in in sd:
+                            rec[k_out] = round(float(sd[k_in]), 4)
+                            break
             except (OSError, ValueError, TypeError):
                 pass
         collected += 1

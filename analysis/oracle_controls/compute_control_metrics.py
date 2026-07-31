@@ -88,6 +88,32 @@ def load_pae_and_masks(rec: dict):
                 f"match protein={sorted(want_p)} / dna={sorted(want_d)}")
         return pae, prot, dna
 
+    if rec["oracle"] == "openfold3":
+        # openfold3 <name>_seed_<s>_sample_<k>_confidences.json
+        #   keys: pae [N,N], pde [N,N], plddt [n_atoms]
+        # There are NO token ids of any kind (not even integer asym ids), so protein
+        # vs DNA is resolved purely positionally from the order the chains were
+        # written into the query JSON: protein copies, then the 2 DNA strands, then
+        # any ligands. The token-count assertion below is the only thing standing
+        # between that assumption and a silently wrong number, so it is fatal.
+        if "pae" not in d:
+            raise ValueError(f"{rec['fold_id']}: no per-token 'pae' in {path}")
+        pae = np.asarray(d["pae"], dtype=float)
+        n = pae.shape[0]
+        exp_p = rec["protein_len"] * rec["protein_copies"]
+        exp_d = 2 * rec["dna_len"]
+        exp_l = len(rec.get("ligands") or [])
+        if n != exp_p + exp_d + exp_l:
+            raise ValueError(
+                f"{rec['fold_id']}: openfold3 PAE is [{n},{n}] but the input implies "
+                f"{exp_p} protein + {exp_d} DNA + {exp_l} ligand = {exp_p + exp_d + exp_l} "
+                "tokens. The positional mapping is wrong -- do not trust the metric.")
+        prot = np.zeros(n, dtype=bool)
+        dna = np.zeros(n, dtype=bool)
+        prot[:exp_p] = True
+        dna[exp_p:exp_p + exp_d] = True
+        return pae, prot, dna
+
     # protenix: positional resolution via integer asym ids
     key = next((k for k in ("token_pair_pae", "pae", "predicted_aligned_error") if k in d), None)
     if key is None:

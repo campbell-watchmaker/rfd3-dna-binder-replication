@@ -42,11 +42,14 @@ than the real task and inflate the metric's apparent discriminative power.
             `_pecli_rf3_msa_a3m` carrier. Supplying any MSA keeps the run a
             single bare fold; omitting it would auto-route to a paid `msa -> rf3`
             pipeline.
-  protenix  run with `--use-msa false`.
+  protenix  carries `unpairedMsa` (see build_protenix; `--use-msa false` alone
+            does NOT suppress the paid MSA routing).
+  openfold3 carries `_pecli_main_msa_a3m` per protein chain (see build_openfold3).
 
 Usage:
-    python build_control_folds.py --oracle rf3      --out-dir folds/rf3
-    python build_control_folds.py --oracle protenix --out-dir folds/protenix
+    python build_control_folds.py --oracle rf3       --out-dir folds/rf3
+    python build_control_folds.py --oracle protenix  --out-dir folds/protenix
+    python build_control_folds.py --oracle openfold3 --out-dir folds/openfold3
     python build_control_folds.py --oracle rf3 --only Engrailed:hd_taatta   # one probe
 """
 from __future__ import annotations
@@ -127,9 +130,48 @@ def build_protenix(fold_id, protein_seq, copies, ligands, sense, anti):
     return spec, prot_chains, dna_chains
 
 
+def build_openfold3(fold_id, protein_seq, copies, ligands, sense, anti):
+    """openfold3 query-set spec: {"seeds": [...], "queries": {name: {"chains": [...]}}}.
+
+    Unlike rf3/protenix this top level is an OBJECT, not a list, and a chain is
+    typed by `molecule_type` in {PROTEIN, DNA, LIGAND} with an explicit
+    `chain_ids` LIST (a chain entry may cover several copies, but we write one
+    entry per chain id so each protein copy carries its own MSA and the
+    manifest's chain order is unambiguous). Ligands take `ccd_codes`, not
+    `ccd_code`.
+
+    `_pecli_main_msa_a3m` is the openfold3 MSA carrier (the analogue of rf3's
+    `_pecli_rf3_msa_a3m` / protenix's `unpairedMsa`): without it the fold has no
+    precomputed MSA and pecli auto-routes it to a paid `msa -> openfold3`
+    pipeline via the ColabFold server (msa.use_msa_server defaults true). A
+    single-sequence a3m keeps the run bare and MSA-free, matching the other two
+    oracles. The seed lives in the input (`seeds`) as well as in the CLI flags.
+    """
+    a3m = f">query\n{protein_seq}\n"
+    letters = iter(_chain_letters(64))
+    chains, prot_chains, dna_chains = [], [], []
+    for _ in range(copies):
+        cid = next(letters)
+        chains.append({"molecule_type": "PROTEIN", "chain_ids": [cid],
+                       "sequence": protein_seq, "_pecli_main_msa_a3m": a3m})
+        prot_chains.append(cid)
+    for strand in (sense, anti):
+        cid = next(letters)
+        chains.append({"molecule_type": "DNA", "chain_ids": [cid], "sequence": strand})
+        dna_chains.append(cid)
+    for ccd in ligands:
+        cid = next(letters)
+        chains.append({"molecule_type": "LIGAND", "chain_ids": [cid], "ccd_codes": [ccd]})
+    spec = {"seeds": [42], "queries": {fold_id: {"chains": chains}}}
+    return spec, prot_chains, dna_chains
+
+
+BUILDERS = {"rf3": build_rf3, "protenix": build_protenix, "openfold3": build_openfold3}
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--oracle", required=True, choices=["rf3", "protenix"])
+    ap.add_argument("--oracle", required=True, choices=sorted(BUILDERS))
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--controls", default=None,
                     help="curated_controls.json (default: alongside this script)")
@@ -155,7 +197,7 @@ def main():
             fold_id = f"{c['label']}__{dna_id}"
             if args.only and args.only != f"{c['label']}:{dna_id}":
                 continue
-            builder = build_rf3 if args.oracle == "rf3" else build_protenix
+            builder = BUILDERS[args.oracle]
             spec, prot_chains, dna_chains = builder(
                 fold_id, c["protein_sequence"], c["copies"], c["ligands"],
                 d["sense"], d["antisense"])

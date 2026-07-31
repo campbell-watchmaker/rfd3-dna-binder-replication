@@ -31,6 +31,13 @@ RUN_ID_RE = re.compile(r"(?:Prepared|prepared)\s+\S+\s+(?:run|pipeline)\s+([0-9a
 ORACLE_FLAGS = {
     "rf3": ["--diffusion-batch-size", "1", "--seed", "42"],
     "protenix": ["--need-atom-confidence", "true", "--sample", "1", "--seeds", "42"],
+    # openfold3's per-token PAE comes from the `pae_enabled` model preset, which is
+    # on by default -- pinned explicitly here so the panel is not silently changed
+    # by a default flip. `low_mem` is the shipped default too, and use_templates
+    # defaults false, which is what we want (untemplated, comparable to the other
+    # two oracles). Seed + single diffusion sample match rf3/protenix.
+    "openfold3": ["--presets", "predict,pae_enabled,low_mem",
+                  "--seeds", "42", "--num-diffusion-samples", "1"],
 }
 
 
