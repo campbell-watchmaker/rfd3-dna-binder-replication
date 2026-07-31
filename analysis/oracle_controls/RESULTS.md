@@ -90,6 +90,59 @@ are recorded in `curated_controls.json` from before any fold was run:
 Sample size is 5 specific TFs; 4/5 vs 0.62 expected is suggestive, not a
 precise hit-rate estimate.
 
+## Follow-up: why are the absolute minPAE values high, and does it matter?
+
+Only Zif268 (1.07 Å) clears the paper's own `minPAE < 1.25` gate; MAX (2.15),
+λ repressor (3.87) and Engrailed (3.88) do not, despite all three ranking their
+own cognate site first. Three candidate causes were tested or resolved.
+
+**Tested — neither MSA nor best-of-N explains it** (rf3, on-target folds):
+
+| protein | baseline | 5 diffusion samples | Δ | + deep MSA | Δ |
+|---|---|---|---|---|---|
+| Zif268 | 1.07 | 1.07 | +0.00 | **0.96** | −0.11 |
+| MAX_bHLH | 2.15 | 2.15 | +0.00 | — | — |
+| LambdaRep | 3.87 | 3.82 | −0.05 | — | — |
+| Engrailed | 3.88 | 3.88 | +0.00 | — | — |
+
+baseline = no MSA, 1 diffusion sample (the 64-fold panel config).
+
+Both arms were verified to have actually taken effect rather than silently
+no-op'd: the 5-sample runs produced 5 sample directories, and their ranking
+scores span 0.8456–0.8458 — the samples are **near-degenerate**, which is why
+best-of-N buys nothing. The MSA arm used a genuine 2.9 MB a3m with real UniRef
+homologs at ~81% identity, so −0.11 Å is what a deep alignment is worth here,
+not an artifact of an empty alignment.
+
+**Resolved from the paper — the actual divergence is templating.** Sehgal et al.
+computed their native-TF minPAE benchmark "with the protein templated and run in
+**single-sequence mode**", and the specificity block's all-by-all is templated
+too (the only place templates are used in their pipeline: "the most recent AF3
+prediction before the all-by-all folding was used as the template for the
+protein chain").
+
+So our MSA-free choice *matches* the paper. What differs is that we did not
+template the protein chain. Templating supplies the protein fold, so minPAE
+reflects interface confidence rather than carrying fold uncertainty — which is
+the remaining explanation for the offset, by elimination. rf3 supports it
+(per-chain CIF as a `path` component plus `template_selection`, mixable with
+`seq` components), so this is directly testable and cheap. **Untested as of this
+writing.**
+
+**Why the ranking result stands regardless.** The discrimination reported above
+was obtained under a config whose absolute values move by ≤0.11 Å under both a
+deep MSA and 5× sampling. The 4/5 argmin rate and the +9.1 Å class gap are
+therefore not artifacts of an under-powered fold setup. What the offset does
+mean is narrower and already stated: **the paper's absolute thresholds must not
+be carried over to rf3 outputs** — `minPAE < 1.25` would reject 4 of 5 genuine
+TFs here. Note also that `ΔminPAE > 0`, which the paper reports as the criterion
+that "enriched for successful designs experimentally", is satisfied by 4/5 TFs on
+rf3 and 2/5 on protenix.
+
+Absolute minPAE values for the paper's own native TFs are in Fig. S3, which is
+403-locked on bioRxiv, so we cannot yet say whether 1–4 Å is normal under their
+templated protocol.
+
 ## Consequence for the pipeline
 
 `docs/replication_log.md` has been updated: **rf3 becomes the primary

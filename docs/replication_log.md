@@ -48,6 +48,38 @@ ipTM > 0.9 → templated all-by-all fold → rank by ΔminPAE, take top 96.
 **ΔminPAE** = min over off-targets of (minPAE_offtarget) − minPAE_ontarget, where
 minPAE = min over protein–DNA residue pairs of PAE(i, j).
 
+> **Corrections from a close read of the paper's Methods (2026-07-31).** Three
+> things our specs get wrong or omit:
+>
+> 1. **Templating.** Templates are used nowhere in the paper's pipeline *except*
+>    the specificity block's all-by-all fold, where "the most recent AF3
+>    prediction before the all-by-all folding was used as the template for the
+>    protein chain" (a self-template). Their native-TF minPAE benchmark is
+>    likewise "with the protein templated and run in single-sequence mode". Our
+>    specificity spec does not template. This matters: templating removes protein
+>    fold uncertainty so minPAE reflects the interface. See
+>    `analysis/oracle_controls/RESULTS.md`.
+> 2. **Off-target panel is over-built.** The paper's ΔminPAE all-by-all runs
+>    against the on-target plus the *other Table 1 targets* (6 core, +10
+>    additional where applicable) — **not** single-base variants. The "specific
+>    over 35/40 single-base variants" claim is separate wet-lab characterisation
+>    of one binder (DBS5), not the ranking panel. `scripts/make_offtarget_set.py`
+>    builds 46 targets including 36 single-base substitutions, which inflates the
+>    all-by-all ~3× and changes what ΔminPAE means (a minimum taken over
+>    near-identical variants is a much harsher denominator than one taken over
+>    unrelated sites).
+> 3. **Binder block has an earlier gate we omit.** The sequence is: fold →
+>    **DNA-aligned RMSD < 8 Å** → LigandMPNN resample → fold → RMSD < 3 Å,
+>    ipTM > 0.7, high H-bond counts. Our spec starts at the 3 Å gate. (The paper
+>    also states `ΔminPAE > 0` "enriched for successful designs experimentally",
+>    which is a usable criterion that needs no absolute calibration.)
+>
+> Not acted on: the extracted text renders the metric as "Cε-RMSD" throughout.
+> Cε is not a backbone atom, so this is almost certainly a text-extraction
+> artifact of "Cα"; our Cα implementation stands. AF3 seeds/samples/recycles for
+> the *design* folds are not reported anywhere in either paper — only the DNA-only
+> starting duplex is specified (seed 42, single diffusion sample).
+
 **Interaction counting** (paper used DSSR v1.7.8): total protein–DNA H-bonds, major-groove H-bonds,
 and "supporting" (buttressing) intra-protein H-bonds to DNA-contacting residues. Native reference =
 357 JASPAR TF–DNA PDB structures with info content > 1.5.
