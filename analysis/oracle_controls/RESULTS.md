@@ -143,6 +143,71 @@ Absolute minPAE values for the paper's own native TFs are in Fig. S3, which is
 403-locked on bioRxiv, so we cannot yet say whether 1–4 Å is normal under their
 templated protocol.
 
+## Templated arm — templating improves ΔminPAE but does NOT close the absolute offset
+
+Run for **LambdaRep and Engrailed only** (the two TFs at ~3.9 Å where the offset
+hypothesis actually bites), full 8-target rows so ΔminPAE and argmin stay
+computable, plus Zif268 as a plumbing check. Templates are the protein chain of
+each protein's own prior untemplated *prediction* — see
+`make_predicted_templates.py` for why a prediction and not the crystal chain.
+
+| protein | on-target minPAE | | ΔminPAE | | argmin | in-motif |
+|---|---|---|---|---|---|---|
+| | untempl. | **templ.** | untempl. | **templ.** | | |
+| Zif268 | 1.07 | **1.05** | +1.60 | — | ✓ | yes |
+| LambdaRep | 3.87 | **2.94** | +1.93 | **+3.43** | ✓ | yes |
+| Engrailed | 3.88 | **3.99** | +0.26 | **+0.72** | ✓ | yes |
+
+- **Absolute minPAE: not explained.** LambdaRep improved 0.93 Å but remains at
+  2.94, still well above the paper's `minPAE < 1.25` gate. Engrailed got slightly
+  *worse* (+0.11). So templating is not the source of the offset either.
+- **ΔminPAE: improved for both.** +1.93 → +3.43 (LambdaRep) and +0.26 → +0.72
+  (Engrailed). Discrimination went up, not down.
+- **No confidence-for-discrimination trade.** argmin held at 3/3 and all three
+  on-target interfaces stayed inside the motif window (100%, baseline 45.8%), so
+  the ΔminPAE gain is not templating simply making everything confident.
+
+So the absolute offset has now survived **MSA (−0.11 Å), 5× sampling (≈0), and
+templating (−0.93 to +0.11 Å)**. It is a property of rf3's PAE calibration on
+this modality, not of our fold configuration. The practical consequence is
+unchanged and now well supported: **the paper's absolute minPAE thresholds cannot
+be transferred to rf3 and must be recalibrated empirically.** Its
+calibration-free `ΔminPAE > 0` criterion transfers fine.
+
+Templating is nonetheless worth adopting in `specs/specificity_block/`, on the
+evidence that it raises ΔminPAE — the quantity the pipeline actually ranks on —
+without costing discrimination. That is also what the paper does.
+
+## openfold3 arm — worse than chance
+
+40 of 64 folds (the $8.00 cap stopped it; the cut happened to fall after all five
+specific TFs, so the argmin test is complete and only the non-binder rows are
+missing, meaning no binder/non-binder gap can be computed).
+
+| | argmin on own cognate site | ΔminPAE |
+|---|---|---|
+| openfold3 | **0/5** (0.62 expected by chance) | negative for all 5 |
+
+openfold3 does emit a full per-token PAE (`pae` key), needs no extra flag, and
+folds protein+DNA — it is mechanically usable. It is simply the weakest of the
+three at this task.
+
+Cost note worth keeping: openfold3's GPU-hours are **flat at ~0.137 h regardless
+of complex size** (fixed ~2.3 GB checkpoint fetch dominates), so unlike protenix
+it does not get cheaper for small complexes. $0.31/fold, i.e. ~14× rf3 and ~3×
+protenix for the same panel.
+
+## Three-oracle summary
+
+| oracle | argmin on own site | binder/non-binder gap | $/fold |
+|---|---|---|---|
+| **rf3** | **4/5** | **+9.12 Å** (excl. TBP) | **$0.022** |
+| protenix | 2/5 | −2.97 Å (overlap) | $0.042 |
+| openfold3 | 0/5 | not measured (cap) | $0.31 |
+
+rf3 is simultaneously the most discriminative and the cheapest, by a wide margin
+on both.
+
 ## Consequence for the pipeline
 
 `docs/replication_log.md` has been updated: **rf3 becomes the primary
