@@ -62,12 +62,34 @@ def load_pae(path):
     return pae, (list(chains) if chains is not None else None)
 
 
+def _norm_chain(c):
+    """Normalise a token chain label to its bare auth chain id.
+
+    Oracles disagree on this field. rf3 emits `<chain>_<entity>` (e.g. "A_1",
+    "H_1"); protenix/openfold3 emit a bare "A". An exact match against "A" would
+    silently produce an all-False mask for rf3 output and then fail downstream
+    with a confusing "empty protein-DNA PAE block", so strip a trailing
+    _<digits> entity suffix before comparing.
+    """
+    s = str(c)
+    if "_" in s:
+        head, _, tail = s.rpartition("_")
+        if head and tail.isdigit():
+            return head
+    return s
+
+
 def protein_dna_token_masks(n_tokens, chains, protein_chain, dna_chains, protein_len, dna_ranges):
     """Boolean masks over tokens for protein vs DNA. Prefer chain labels; else use explicit ranges."""
     if chains is not None:
-        chains = np.asarray(chains)
-        prot = chains == protein_chain
-        dna = np.isin(chains, list(dna_chains))
+        chains = np.asarray([_norm_chain(c) for c in chains])
+        prot = chains == _norm_chain(protein_chain)
+        dna = np.isin(chains, [_norm_chain(c) for c in dna_chains])
+        if not prot.any() or not dna.any():
+            raise ValueError(
+                f"chain labels {sorted(set(chains.tolist()))} matched no "
+                f"{'protein' if not prot.any() else 'DNA'} tokens "
+                f"(wanted protein={protein_chain!r}, dna={list(dna_chains)!r})")
         return prot, dna
     # fallback: explicit index ranges (0-based, [lo,hi) ) from the manifest
     prot = np.zeros(n_tokens, bool)

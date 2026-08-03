@@ -1,0 +1,9 @@
+protein,klass,n_dna,on_target,min_pae_on_target,delta_min_pae,min_pae_min,min_pae_max,min_pae_mean,spread,argmin_dna,argmin_is_on_target
+Engrailed,specific,8,hd_taatta,0.82,0.14,0.82,4.45,1.7888,3.63,hd_taatta,True
+GFP,nonbinder,8,,,,9.75,14.09,11.6088,4.34,tata,
+LambdaRep,specific,8,lambda_OL1,7.9,-3.4,4.5,9.87,7.9737,5.37,ebox,False
+MAX_bHLH,specific,8,ebox,0.77,-0.06,0.71,3.81,1.6763,3.1,polygc,False
+Sac7d,nonspecific_binder,8,,,,0.61,5.62,2.2,5.01,ebox,
+TBP,specific,8,tata,8.84,-0.09,8.75,12.82,9.8425,4.07,prnp,False
+Ubiquitin,nonbinder,8,,,,5.78,7.85,6.74,2.07,lambda_OL1,
+Zif268,specific,8,zif268_site,0.52,0.72,0.52,7.15,2.665,6.63,zif268_site,True

@@ -48,6 +48,38 @@ ipTM > 0.9 → templated all-by-all fold → rank by ΔminPAE, take top 96.
 **ΔminPAE** = min over off-targets of (minPAE_offtarget) − minPAE_ontarget, where
 minPAE = min over protein–DNA residue pairs of PAE(i, j).
 
+> **Corrections from a close read of the paper's Methods (2026-07-31).** Three
+> things our specs get wrong or omit:
+>
+> 1. **Templating.** Templates are used nowhere in the paper's pipeline *except*
+>    the specificity block's all-by-all fold, where "the most recent AF3
+>    prediction before the all-by-all folding was used as the template for the
+>    protein chain" (a self-template). Their native-TF minPAE benchmark is
+>    likewise "with the protein templated and run in single-sequence mode". Our
+>    specificity spec does not template. This matters: templating removes protein
+>    fold uncertainty so minPAE reflects the interface. See
+>    `analysis/oracle_controls/RESULTS.md`.
+> 2. **Off-target panel is over-built.** The paper's ΔminPAE all-by-all runs
+>    against the on-target plus the *other Table 1 targets* (6 core, +10
+>    additional where applicable) — **not** single-base variants. The "specific
+>    over 35/40 single-base variants" claim is separate wet-lab characterisation
+>    of one binder (DBS5), not the ranking panel. `scripts/make_offtarget_set.py`
+>    builds 46 targets including 36 single-base substitutions, which inflates the
+>    all-by-all ~3× and changes what ΔminPAE means (a minimum taken over
+>    near-identical variants is a much harsher denominator than one taken over
+>    unrelated sites).
+> 3. **Binder block has an earlier gate we omit.** The sequence is: fold →
+>    **DNA-aligned RMSD < 8 Å** → LigandMPNN resample → fold → RMSD < 3 Å,
+>    ipTM > 0.7, high H-bond counts. Our spec starts at the 3 Å gate. (The paper
+>    also states `ΔminPAE > 0` "enriched for successful designs experimentally",
+>    which is a usable criterion that needs no absolute calibration.)
+>
+> Not acted on: the extracted text renders the metric as "Cε-RMSD" throughout.
+> Cε is not a backbone atom, so this is almost certainly a text-extraction
+> artifact of "Cα"; our Cα implementation stands. AF3 seeds/samples/recycles for
+> the *design* folds are not reported anywhere in either paper — only the DNA-only
+> starting duplex is specified (seed 42, single diffusion sample).
+
 **Interaction counting** (paper used DSSR v1.7.8): total protein–DNA H-bonds, major-groove H-bonds,
 and "supporting" (buttressing) intra-protein H-bonds to DNA-contacting residues. Native reference =
 357 JASPAR TF–DNA PDB structures with info content > 1.5.
@@ -130,9 +162,29 @@ off-targets high) ranks above a promiscuous one (off-target also low), and minPA
 correctly takes the global protein–DNA block minimum.
 
 **Oracle constraint (important):** the specificity block **cannot use esmfold2** —
-ΔminPAE needs a PAE matrix, which only the AF3-class folders (protenix / openfold3)
-emit. This differs from the binder block's three-oracle comparison (which only
-needs RMSD/ipTM). protenix is primary, openfold3 the cross-check.
+ΔminPAE needs a PAE matrix, which only the AF3-class folders emit. This differs
+from the binder block's three-oracle comparison (which only needs RMSD/ipTM).
+
+> **Corrected 2026-07-30 (was: "protenix is primary, openfold3 the cross-check").**
+> That plan assumed protenix returns a per-token PAE matrix. It does not, as
+> wrapped by pecli: a completed run retains only
+> `*_summary_confidence_sample_0.json` — scalars plus 2×2 `chain_pair_*`
+> aggregates — and nothing else is even written to S3. The full matrix requires
+> `--need-atom-confidence true`, which additionally emits
+> `*_full_data_sample_<rank>.json` with `token_pair_pae`; the array is always
+> computed in memory but discarded otherwise.
+>
+> Meanwhile **rf3** (RosettaFold3) emits a full PAE *natively* —
+> `*_confidences.json` with `pae [N,N]`, `token_chain_ids`, `token_res_ids`,
+> already in the shape `scripts/compute_delta_minpae.py` parses — at roughly half
+> protenix's realised cost (~$0.06 vs ~$0.12 per fold, pecli's own figures over
+> ~90 runs each).
+>
+> **So rf3 becomes the primary specificity oracle, with protenix (PAE flag on) as
+> the cross-check.** Note protenix's PAE carries no chain labels, only integer
+> `token_asym_id`, so protein-vs-DNA tokens must be resolved positionally from
+> input entity order and the resulting counts asserted against the submitted
+> sequence lengths. See `analysis/oracle_controls/`.
 
 `scripts/build_allbyall_inputs.py` builds one complex-JSON per (design × DNA
 target) plus a `folds_manifest.json` skeleton for `compute_delta_minpae.py`.
@@ -163,6 +215,15 @@ Unit-tested in `tests/test_specificity_block.py` (3 tests).
 - [x] Binder-block spec authored.
 - [x] Specificity-block spec authored.
 - [x] Pre-generation analysis: DNA-similarity premise (analysis/dna_similarity/, PR #6).
+- [x] Pre-generation analysis: **ΔminPAE oracle controls** (analysis/oracle_controls/).
+      128 folds of 8 natural controls (5 specific TFs / 1 non-specific duplex binder /
+      2 non-binders) × 8 DNA targets × {rf3, protenix}, MSA-free. $4.06, 0 failures.
+      On rf3 the classes separate as designed (argmin on the correct cognate site for
+      4/5 TFs; +9.1 Å binder/non-binder gap excluding TBP); on protenix they do not
+      (2/5; ranges overlap). Established rf3 as the primary specificity oracle and
+      measured the real per-fold cost. See analysis/oracle_controls/RESULTS.md.
+- [x] Off-target decoy panel verified against Sehgal et al. Table 1 (decoy-controlled;
+      note GGGCTTGCGA is labelled both Oct4-gRNA2 and Dux4-gRNA2 in the paper).
 - [ ] Generation run via pecli (binder block → specificity block).
 - [ ] Post-generation analysis: returned designs (DNA-aligned RMSD, ipTM, interactions).
 - [ ] Post-generation analysis: ΔminPAE re-derivation from released data (analysis/delta_minpae/) — validates the metric before applying it to our designs.

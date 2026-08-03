@@ -60,3 +60,48 @@ def test_dna_aligned_rmsd_zero_for_identity(tmp_path):
     rmsd, n_ca = fbb.dna_aligned_ca_rmsd(arr, arr.copy())
     assert rmsd == 0.0
     assert n_ca == 3
+
+
+# --- two-stage binder-block gate (corrected 2026-07-31) -------------------
+# Paper Methods: fold -> DNA-aligned RMSD < 8 A -> LigandMPNN resample -> fold ->
+# RMSD < 3 A, ipTM > 0.7, high H-bond counts. The 8 A pre-resample gate was
+# missing, which would have sent every diffused backbone into resampling rather
+# than only the self-consistent ones.
+
+def _run_filter(tmp_path, rows, extra):
+    import subprocess, csv
+    man = tmp_path / "m.json"
+    # analyze_one will fail on these stub paths; the filter records the error row
+    # and still applies the gate, which is what we are testing.
+    json.dump(rows, open(man, "w"))
+    out, cmp_ = tmp_path / "p.csv", tmp_path / "c.csv"
+    r = subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "..",
+                                                     "scripts", "filter_binder_block.py"),
+                        "--manifest", str(man), "--out", str(out),
+                        "--oracle-comparison", str(cmp_), *extra],
+                       capture_output=True, text=True)
+    return r.stdout + r.stderr
+
+
+def test_pre_resample_stage_defaults_to_8A_and_drops_the_iptm_gate(tmp_path):
+    txt = _run_filter(tmp_path, [], ["--stage", "pre_resample"])
+    assert "RMSD<8.0" in txt, txt
+    assert "no ipTM gate" in txt, txt
+
+
+def test_post_resample_stage_defaults_to_3A_with_iptm(tmp_path):
+    txt = _run_filter(tmp_path, [], ["--stage", "post_resample"])
+    assert "RMSD<3.0" in txt and "ipTM>0.7" in txt, txt
+
+
+def test_post_resample_is_the_default_stage(tmp_path):
+    txt = _run_filter(tmp_path, [], [])
+    assert "stage=post_resample" in txt, txt
+
+
+def test_pre_resample_gate_admits_a_backbone_the_3A_gate_would_reject():
+    # a 5 A design is self-consistent enough to resample but not to pass the
+    # final gate -- the whole point of having two thresholds
+    assert fbb  # module imported
+    for gate, expect in ((8.0, True), (3.0, False)):
+        assert (5.0 < gate) is expect

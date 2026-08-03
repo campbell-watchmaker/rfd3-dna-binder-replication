@@ -1,21 +1,23 @@
-{
-  "name": "prnp_duplex",
-  "sequences": [
-    {
-      "dna": {
-        "id": "A",
-        "sequence": "TGAGGAGAGGAG"
+[
+  {
+    "name": "prnp_duplex",
+    "sequences": [
+      {
+        "dnaSequence": {
+          "sequence": "TGAGGAGAGGAG",
+          "count": 1
+        }
+      },
+      {
+        "dnaSequence": {
+          "sequence": "CTCCTCTCCTCA",
+          "count": 1
+        }
       }
-    },
-    {
-      "dna": {
-        "id": "B",
-        "sequence": "CTCCTCTCCTCA"
-      }
-    }
-  ],
-  "modelSeeds": [
-    42
-  ],
-  "_note": "DNA-only duplex fold to produce the B-form target for rfd3na. Matches Sehgal et al. target prep (AF3 seed 42, single diffusion sample). Run GPU-side via pecli protenix/openfold3; the resulting duplex CIF is the rfd3na conditioning target."
-}
+    ],
+    "_note": "DNA-only duplex fold to produce the B-form target for rfd3na. Matches Sehgal et al. target prep (single diffusion sample). Run GPU-side via pecli protenix; the resulting duplex CIF is the rfd3na conditioning target. Chains are lettered in sequences order, so sense=A, antisense=B.",
+    "_seed_note": "The paper uses AF3 seed 42. protenix reads 'modelSeeds' ONLY when --use-seeds-in-json is set; pecli's --seeds governs by default. So request the seed explicitly: pecli prepare protenix --input this.json --seeds 42 --sample 1",
+    "_schema_note": "protenix requires a top-level LIST, the entity key 'dnaSequence' (not 'dna'), and 'count' on every entity. The previous version of this file used the AF3-server/Boltz spelling {'dna': {'id': 'A', ...}} inside a top-level object; pecli's prepare-time validator rejects that, so it had never been folded.",
+    "_msa_note": "pecli auto-routes any protenix fold lacking a precomputed MSA to a paid 'msa -> protenix' pipeline, and it does this even for a DNA-only input where there is no protein chain to align. Pass --public-msa to opt out of that routing and run the fold bare."
+  }
+]
