@@ -205,12 +205,36 @@ def count_protein_dna_hbonds(arr):
     return total, major
 
 
+def protein_only_ca_rmsd(design_arr, refold_arr):
+    """Protein Ca-RMSD after superposing protein-on-protein, ignoring the DNA.
+
+    The paper's gate is the DNA-aligned RMSD, but on its own that number cannot say
+    WHY a design failed: a correctly folded protein docked in the wrong place and a
+    misfolded protein both score badly. Reporting this alongside separates them, which
+    is what actually tells you where to intervene -- observed on the first smoke-test
+    batch, 9/50 sequences folded to <3 A yet sat >8 A off after DNA alignment, i.e.
+    LigandMPNN was producing foldable sequences and the failure was placement.
+    """
+    def ca(a):
+        m = a[struc.filter_amino_acids(a) & (a.atom_name == "CA")]
+        return m[np.lexsort((m.res_id, m.chain_id))]
+
+    d, r = ca(design_arr), ca(refold_arr)
+    if d.array_length() == 0 or d.array_length() != r.array_length():
+        raise ValueError(
+            f"protein Ca count mismatch: design {d.array_length()}, refold {r.array_length()}")
+    fitted, _ = struc.superimpose(d, r)
+    return float(struc.rmsd(d, fitted))
+
+
 def analyze_one(design_path, refold_path):
     design = _load_any(design_path)
     refold = _load_any(refold_path)
     rmsd, n_ca = dna_aligned_ca_rmsd(design, refold)
+    prot_rmsd = protein_only_ca_rmsd(design, refold)
     hb_total, hb_major = count_protein_dna_hbonds(refold)
-    return {"dna_aligned_ca_rmsd": round(rmsd, 3), "n_ca_matched": n_ca,
+    return {"dna_aligned_ca_rmsd": round(rmsd, 3),
+            "protein_only_ca_rmsd": round(prot_rmsd, 3), "n_ca_matched": n_ca,
             "protein_dna_hbonds": hb_total, "major_groove_hbonds": hb_major}
 
 
@@ -246,14 +270,16 @@ def main():
         try:
             m = analyze_one(j["design_path"], j["refold_path"])
         except Exception as e:
-            m = {"dna_aligned_ca_rmsd": None, "n_ca_matched": 0,
-                 "protein_dna_hbonds": None, "major_groove_hbonds": None, "error": str(e)}
+            m = {"dna_aligned_ca_rmsd": None, "protein_only_ca_rmsd": None,
+                 "n_ca_matched": 0, "protein_dna_hbonds": None,
+                 "major_groove_hbonds": None, "error": str(e)}
         row = {"design_id": j["design_id"], "oracle": j.get("oracle", "unknown"),
                "iptm": j.get("iptm"), "runtime_s": j.get("runtime_s"), "gpu": j.get("gpu"), **m}
         all_rows.append(row)
 
-    cols = ["design_id", "oracle", "dna_aligned_ca_rmsd", "iptm", "protein_dna_hbonds",
-            "major_groove_hbonds", "n_ca_matched", "runtime_s", "gpu"]
+    cols = ["design_id", "oracle", "dna_aligned_ca_rmsd", "protein_only_ca_rmsd", "iptm",
+            "protein_dna_hbonds", "major_groove_hbonds", "n_ca_matched", "error",
+            "runtime_s", "gpu"]
     os.makedirs(os.path.dirname(args.oracle_comparison) or ".", exist_ok=True)
     with open(args.oracle_comparison, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
