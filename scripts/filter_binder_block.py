@@ -105,6 +105,16 @@ def _match_dna_chains(design_arr, refold_arr):
 def dna_aligned_ca_rmsd(design_arr, refold_arr):
     """Superpose refold onto design by DNA atoms; return protein Ca RMSD after that fit.
 
+    THE REFOLD MUST BE UNTEMPLATED. This metric asks whether the designed sequence
+    INDEPENDENTLY folds back into the backbone it was designed for. Supplying that
+    backbone as a template hands the fold the answer: RMSD collapses toward zero and
+    the gate passes everything. The specificity block's all-by-all IS templated (see
+    scripts/build_allbyall_inputs.py) and that is correct there, because it compares
+    one fixed pose across many DNA targets rather than testing self-consistency. Do
+    not carry templating over to this stage -- the paper does not either
+    ("Templates were not used throughout the design campaign with the exception of
+    the all-by-all folding step in the specificity block").
+
     Both correspondences are established WITHOUT trusting chain letters (see
     _match_dna_chains): DNA strands are paired by base sequence, and protein Ca atoms
     are matched in sequential order along the single designed chain. The refold is a

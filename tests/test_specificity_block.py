@@ -125,3 +125,86 @@ def test_ranking_panel_is_much_cheaper_than_the_old_conflated_one(tmp_path):
     assert len(rank["offtargets"]) < len(both["offtargets"]) / 3, (
         "the corrected ranking panel should be several-fold smaller than the "
         "old decoys+sbs union")
+
+
+# --- templating is the default for the all-by-all (decided 2026-08-05) -----
+# The paper templates the protein chain in exactly one place -- "Templates were not
+# used throughout the design campaign with the exception of the all-by-all folding
+# step in the specificity block" -- and our own control panel measured it raising
+# ΔminPAE (LambdaRep +1.93 -> +3.43, Engrailed +0.26 -> +0.72) with argmin holding
+# 3/3 and every on-target interface still inside the motif window. These tests pin
+# that default, and pin the two ways it could be got wrong: templating the DNA (which
+# would hand the fold the docking geometry it is meant to predict), and carrying
+# templating over to the binder block's self-consistency gate (which would hand that
+# fold the very backbone it is being asked to independently reproduce).
+
+def _aba(tmp_path, extra, seq="MKTAYIAKQRQISFVKSHFSRQ"):
+    import subprocess
+    off = tmp_path / "off.json"
+    subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "..",
+                                                 "scripts", "make_offtarget_set.py"),
+                    "--on-target", "TGAGGAGAGGAG", "--panel", "ranking",
+                    "--out", str(off)], check=True, capture_output=True)
+    fa = tmp_path / "d.fasta"
+    fa.write_text(f">d1\n{seq}\n")
+    out = tmp_path / ("aba" + str(abs(hash(tuple(extra))) % 9999))
+    r = subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "..",
+                                                     "scripts", "build_allbyall_inputs.py"),
+                        "--design-fasta", str(fa), "--offtargets", str(off),
+                        "--out-dir", str(out), *extra],
+                       capture_output=True, text=True)
+    return r, out
+
+
+def test_allbyall_requires_a_template_dir_by_default(tmp_path):
+    """Templating is not opt-in: omitting it must be an error, not a silent
+    fall-through to sequence-only specs."""
+    r, _ = _aba(tmp_path, [])
+    assert r.returncode != 0
+    assert "--template-dir is required" in (r.stdout + r.stderr)
+
+
+def test_allbyall_templates_the_protein_and_never_the_dna(tmp_path):
+    cif = tmp_path / "tmpl"
+    cif.mkdir()
+    (cif / "d1_template.cif").write_text("data_stub\n")
+    r, out = _aba(tmp_path, ["--template-dir", str(cif)])
+    assert r.returncode == 0, r.stdout + r.stderr
+    spec = json.load(open(out / "d1__on_target.json"))
+    entry = spec[0]
+    assert entry["template_selection"] == ["A"], "only the protein chain may be templated"
+    comps = entry["components"]
+    assert "path" in comps[0], "the protein should ride as a template CIF component"
+    dna = [c for c in comps if c.get("chain_type") == "polydeoxyribonucleotide"]
+    assert len(dna) == 2, "both DNA strands must be present as free sequence components"
+    assert all("path" not in c for c in dna), "the DNA must never be templated"
+
+
+def test_allbyall_targets_rf3_not_protenix(tmp_path):
+    """rf3 won the oracle comparison (argmin 4/5 vs protenix 2/5, whose binder /
+    non-binder ranges overlap) and is ~2x cheaper."""
+    cif = tmp_path / "tmpl2"
+    cif.mkdir()
+    (cif / "d1_template.cif").write_text("data_stub\n")
+    _, out = _aba(tmp_path, ["--template-dir", str(cif)])
+    man = json.load(open(out / "folds_manifest.json"))
+    assert man, "manifest is empty"
+    assert {m["oracle"] for m in man} == {"rf3"}
+    assert all(m["templated"] for m in man)
+
+
+def test_allbyall_untemplated_escape_hatch_is_msa_free(tmp_path):
+    r, out = _aba(tmp_path, ["--no-template"])
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "NOT the paper's protocol" in r.stdout
+    spec = json.load(open(out / "d1__on_target.json"))
+    p = spec[0]["components"][0]
+    assert p["_pecli_rf3_msa_a3m"].count(">") == 1
+    assert "template_selection" not in spec[0]
+
+
+def test_binder_block_rmsd_warns_against_templating():
+    """The binder-block gate must stay untemplated; keep the reason in the source."""
+    src = open(os.path.join(os.path.dirname(__file__), "..", "scripts",
+                            "filter_binder_block.py")).read()
+    assert "MUST BE UNTEMPLATED" in src
