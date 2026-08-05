@@ -62,11 +62,64 @@ def build_system(fixer: PDBFixer, dna_chain_ids: set[str], restraint_k: float):
     return system, modeller, n_restrained
 
 
+def _strip_5prime_phosphate(complex_path: str, dna_chain_ids: set[str]) -> str:
+    """Drop the 5'-terminal phosphate from each DNA chain, and return a temp PDB path.
+
+    WHY. rfd3na emits a full phosphate (P, OP1, OP2) on *every* nucleotide including
+    the 5' terminus. Amber's 5'-terminal DNA templates (DT5/DC5/...) begin at O5' and
+    have no 5'-phosphate variant, so the residue instead half-matches the internal /
+    3' template and createSystem dies with
+
+        No template found for residue 0 (DT). The atoms and bonds in the residue match
+        DT3, but the set of externally bonded atoms is missing 1 P atom and has 1 O
+        atom too many. Is the chain terminated in a way that is unsupported by the
+        force field?
+
+    which is easy to misread as a residue-naming or missing-hydrogen problem. It is
+    neither: the terminus simply carries one phosphate the force field cannot type.
+
+    Removing it is chemically harmless here. A 5'-monophosphate on a synthetic duplex
+    is arbitrary (rfd3na applies it uniformly rather than modelling a real 5' end), and
+    the DNA is positionally restrained throughout the minimisation, so its terminal
+    chemistry has negligible influence on how the protein relaxes against it.
+    """
+    import tempfile
+
+    import numpy as np
+    import biotite.structure.io.pdb as pdb
+
+    arr = pdb.PDBFile.read(complex_path).get_structure(model=1)
+    drop = np.zeros(arr.array_length(), dtype=bool)
+    for ch in sorted(dna_chain_ids):
+        sel = arr.chain_id == ch
+        if not sel.any():
+            continue
+        first = arr.res_id[sel].min()
+        drop |= sel & (arr.res_id == first) & np.isin(arr.atom_name, ("P", "OP1", "OP2"))
+    n = int(drop.sum())
+    kept = arr[~drop]
+
+    out = tempfile.NamedTemporaryFile(suffix=".pdb", delete=False).name
+    f = pdb.PDBFile()
+    f.set_structure(kept)
+    f.write(out)
+    print(f"  stripped {n} 5'-terminal phosphate atom(s) from DNA chains "
+          f"{','.join(sorted(dna_chain_ids))}")
+    return out
+
+
 def relax(complex_path: str, out_path: str, dna_chain_ids: set[str], restraint_k: float):
-    fixer = PDBFixer(filename=complex_path)
-    fixer.findMissingResidues()
+    prepped = _strip_5prime_phosphate(complex_path, dna_chain_ids)
+    fixer = PDBFixer(filename=prepped)
+    # Don't invent residues. findMissingResidues() would try to fill gaps against the
+    # SEQRES record; an rfd3na design has no meaningful SEQRES and any "missing" loop
+    # it decided to build would be fabricated backbone, not part of the design.
+    fixer.missingResidues = {}
     fixer.findMissingAtoms()
     fixer.addMissingAtoms()
+    # rfd3na writes heavy atoms only (verified: zero H in its output) while
+    # amber14-all.xml is an all-atom force field, so hydrogens have to be built.
+    fixer.addMissingHydrogens(7.0)
 
     system, modeller, n_restrained = build_system(fixer, dna_chain_ids, restraint_k)
     if n_restrained == 0:
