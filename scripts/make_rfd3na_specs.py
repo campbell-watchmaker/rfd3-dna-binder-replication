@@ -61,6 +61,55 @@ def _group_hbond(candidates, role):
     return {k: ",".join(v) for k, v in out.items()}
 
 
+def purine_chain(candidates):
+    """Which strand is the purine-rich one, counted from the data (not assumed).
+
+    For a poly-purine target like PRNP (TGAGGAGAGGAG) one strand carries nearly all
+    the major-groove information: every G contributes N7+O6 and every A contributes
+    N7+N6, while the complementary strand offers only C-N4 / T-O4. Conditioning on
+    both strands would doubly constrain the same base pairs.
+    """
+    counts = {}
+    for c in candidates:
+        counts.setdefault(c["chain"], [0, 0])
+        counts[c["chain"]][0 if c["res_name"] in ("DA", "DG") else 1] += 1
+    return max(counts, key=lambda ch: counts[ch][0])
+
+
+def subset_for_ori(candidates, bp_start, bp_end, n_central, strand):
+    """Pick the handful of atoms this ori's spec should condition on.
+
+    WHY SUBSET AT ALL. The generator can emit every candidate atom (36 for a 12-bp
+    PRNP duplex), but conditioning on all of them over-constrains diffusion -- the
+    paper conditions on a selected subset, "e.g. the N7/O6 of the central G/A run".
+
+    THE RULE, in three parts:
+      1. purine strand only (see purine_chain) -- the information-bearing face;
+      2. drop the duplex's terminal base pairs, where the predicted duplex frays and
+         where a real binder's contacts are least reliable;
+      3. of what remains inside this ori's own bp window, take the CENTRAL n bases,
+         so each spec's constraints sit inside the span its ori token describes.
+
+    Both atoms of a base are kept together, never one alone: G N7+O6 and A N7+N6 are
+    the bidentate pairs Arg and Asn actually form against a purine, so splitting them
+    would specify a weaker and less physical constraint.
+    """
+    all_ids = [c["res_id"] for c in candidates]
+    duplex_lo, duplex_hi = min(all_ids), max(all_ids)
+    chains = {purine_chain(candidates)} if strand == "purine" else \
+        {c["chain"] for c in candidates}
+
+    usable = sorted({c["res_id"] for c in candidates
+                     if c["chain"] in chains
+                     and bp_start <= c["res_id"] <= bp_end
+                     and duplex_lo < c["res_id"] < duplex_hi})
+    if n_central and len(usable) > n_central:
+        off = (len(usable) - n_central) // 2
+        usable = usable[off:off + n_central]
+    keep = set(usable)
+    return [c for c in candidates if c["chain"] in chains and c["res_id"] in keep]
+
+
 def _dna_chain_ranges(candidates):
     """Infer per-chain residue ranges present in the duplex, for select_fixed_atoms / contig."""
     by_chain: dict[str, set[int]] = {}
@@ -101,18 +150,28 @@ def main():
     ap.add_argument("--protein-len", default="120-150", help="designed protein length range (paper: 120-150)")
     ap.add_argument("--design-name", default="binder")
     ap.add_argument("--out-dir", required=True)
+    ap.add_argument("--hbond-central-bases", type=int, default=3,
+                    help="condition on the central N bases of each ori window "
+                         "(0 = every candidate, which over-constrains diffusion)")
+    ap.add_argument("--hbond-strand", choices=["purine", "both"], default="purine",
+                    help="purine (default): the information-bearing strand only")
     args = ap.parse_args()
 
     cond = json.load(open(args.conditioning))
     cands = cond["hbond_candidates"]
-    donor = _group_hbond(cands, "donor")
-    acceptor = _group_hbond(cands, "acceptor")
     dna_ranges = _dna_chain_ranges(cands)
 
     os.makedirs(args.out_dir, exist_ok=True)
     manifest = []
     for k, tok in enumerate(cond["ori_tokens"], start=1):
         name = f"{args.design_name}_ori{k}"
+        # Per-ori subset: each spec conditions only on atoms inside its own ori span.
+        sub = subset_for_ori(cands, tok["bp_start"], tok["bp_end"],
+                             args.hbond_central_bases, args.hbond_strand)
+        donor = _group_hbond(sub, "donor")
+        acceptor = _group_hbond(sub, "acceptor")
+        print(f"{name}: conditioning on {len(sub)} of {len(cands)} candidate atoms "
+              f"-- {', '.join(sorted({c['chain'] + str(c['res_id']) + ' ' + c['res_name'][-1] for c in sub}))}")
         spec = build_spec(
             name, args.duplex_cif, args.protein_len, tok["ori_xyz"],
             donor, acceptor, dna_ranges,
