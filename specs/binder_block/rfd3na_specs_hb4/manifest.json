@@ -1,0 +1,34 @@
+{
+  "design_name": "prnp_binder_hb4",
+  "protein_len": "120-150",
+  "duplex_cif": "/workspace/prnp_duplex.cif",
+  "n_specs": 2,
+  "specs": [
+    {
+      "spec": "prnp_binder_hb4_ori1.json",
+      "design_name": "prnp_binder_hb4_ori1",
+      "ori_bp_range": [
+        1,
+        6
+      ],
+      "ori_token": [
+        5.974,
+        -10.494,
+        -2.931
+      ]
+    },
+    {
+      "spec": "prnp_binder_hb4_ori2.json",
+      "design_name": "prnp_binder_hb4_ori2",
+      "ori_bp_range": [
+        7,
+        12
+      ],
+      "ori_token": [
+        -4.07,
+        6.454,
+        3.244
+      ]
+    }
+  ]
+}

@@ -62,19 +62,68 @@ def _protein_dna_masks(arr):
     return prot, dna
 
 
+def _dna_strand_sequences(arr):
+    """{chain_id: one-letter base sequence} for each DNA chain, 5'->3' by res_id."""
+    _, dna_mask = _protein_dna_masks(arr)
+    dna = arr[dna_mask]
+    out = {}
+    for ch in sorted(set(dna.chain_id.tolist())):
+        c = dna[dna.chain_id == ch]
+        out[ch] = "".join(c.res_name[c.res_id == r][0][-1] for r in np.unique(c.res_id))
+    return out
+
+
+def _match_dna_chains(design_arr, refold_arr):
+    """Map refold DNA chain id -> design DNA chain id, BY BASE SEQUENCE.
+
+    Chain letters are NOT comparable between these two structures. rfd3na writes the
+    duplex first and the designed protein last (DNA = A,B; protein = C), while the
+    refold spec declares the protein first (protein = A; DNA = B,C). Matching DNA on
+    the chain letter therefore pairs the design's ANTISENSE strand with the refold's
+    SENSE strand -- and because the sugar-phosphate backbone atom names are identical
+    in every nucleotide, ~130 atoms "match" and the superposition silently succeeds on
+    the wrong strand, returning a confident, meaningless RMSD.
+
+    So pair the strands by sequence instead, which is unambiguous for a
+    non-palindromic duplex.
+    """
+    d_seqs = _dna_strand_sequences(design_arr)
+    r_seqs = _dna_strand_sequences(refold_arr)
+    mapping, used = {}, set()
+    for r_ch, r_seq in r_seqs.items():
+        for d_ch, d_seq in d_seqs.items():
+            if d_ch not in used and d_seq == r_seq:
+                mapping[r_ch] = d_ch
+                used.add(d_ch)
+                break
+    if len(mapping) != len(r_seqs):
+        raise ValueError(
+            f"could not pair DNA strands by sequence: design {d_seqs} vs refold {r_seqs}")
+    return mapping
+
+
 def dna_aligned_ca_rmsd(design_arr, refold_arr):
-    """Superpose refold onto design by DNA atoms; return protein Ca RMSD after that fit."""
-    d_prot, d_dna = _protein_dna_masks(design_arr)
-    r_prot, r_dna = _protein_dna_masks(refold_arr)
+    """Superpose refold onto design by DNA atoms; return protein Ca RMSD after that fit.
 
-    # match DNA atoms by (chain, res_id, atom_name); use the common set, in order
-    def dna_index(arr, mask):
+    Both correspondences are established WITHOUT trusting chain letters (see
+    _match_dna_chains): DNA strands are paired by base sequence, and protein Ca atoms
+    are matched in sequential order along the single designed chain. The refold is a
+    prediction of the same sequence, so residue i corresponds to residue i.
+    """
+    chain_map = _match_dna_chains(design_arr, refold_arr)
+
+    def dna_index(arr, remap=None):
+        _, mask = _protein_dna_masks(arr)
         sub = arr[mask]
-        return {(a.chain_id, a.res_id, a.atom_name): i for i, a in enumerate(sub)}, sub
+        idx = {}
+        for i, a in enumerate(sub):
+            ch = remap.get(a.chain_id, a.chain_id) if remap else a.chain_id
+            idx[(ch, a.res_id, a.atom_name)] = i
+        return idx, sub
 
-    d_idx, d_sub = dna_index(design_arr, d_dna)
-    r_idx, r_sub = dna_index(refold_arr, r_dna)
-    common = [k for k in d_idx if k in r_idx]
+    d_idx, d_sub = dna_index(design_arr)
+    r_idx, r_sub = dna_index(refold_arr, remap=chain_map)
+    common = sorted(k for k in d_idx if k in r_idx)
     if len(common) < 3:
         raise ValueError(f"too few common DNA atoms to superpose ({len(common)})")
     d_dna_coords = d_sub[[d_idx[k] for k in common]]
@@ -84,19 +133,25 @@ def dna_aligned_ca_rmsd(design_arr, refold_arr):
     _, transform = struc.superimpose(d_dna_coords, r_dna_coords)
     refold_moved = transform.apply(refold_arr)
 
-    # protein Ca RMSD between design and transformed refold, matched by (chain,res_id)
-    def ca_map(arr):
-        m = arr[(struc.filter_amino_acids(arr)) & (arr.atom_name == "CA")]
-        return {(a.chain_id, a.res_id): arr_i for arr_i, a in enumerate(m)}, m
+    # protein Ca, matched in sequential order (chain letters differ; see above)
+    def ca_ordered(arr):
+        m = arr[struc.filter_amino_acids(arr) & (arr.atom_name == "CA")]
+        order = np.lexsort((m.res_id, m.chain_id))
+        return m[order]
 
-    d_ca_idx, d_ca = ca_map(design_arr)
-    r_ca_idx, r_ca = ca_map(refold_moved)
-    ca_common = [k for k in d_ca_idx if k in r_ca_idx]
-    if not ca_common:
-        raise ValueError("no common protein Ca atoms")
-    dc = d_ca.coord[[d_ca_idx[k] for k in ca_common]]
-    rc = r_ca.coord[[r_ca_idx[k] for k in ca_common]]
-    return float(np.sqrt(np.mean(np.sum((dc - rc) ** 2, axis=1)))), len(ca_common)
+    d_ca = ca_ordered(design_arr)
+    r_ca = ca_ordered(refold_moved)
+    n = min(d_ca.array_length(), r_ca.array_length())
+    if n == 0:
+        raise ValueError("no protein Ca atoms")
+    if d_ca.array_length() != r_ca.array_length():
+        # a length mismatch means these are not the same design; refuse rather than
+        # silently compare a truncated prefix
+        raise ValueError(
+            f"protein length mismatch: design has {d_ca.array_length()} Ca, "
+            f"refold has {r_ca.array_length()}")
+    dc, rc = d_ca.coord, r_ca.coord
+    return float(np.sqrt(np.mean(np.sum((dc - rc) ** 2, axis=1)))), n
 
 
 def count_protein_dna_hbonds(arr):
