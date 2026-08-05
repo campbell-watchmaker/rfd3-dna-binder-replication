@@ -61,6 +61,14 @@ CLASS_LABEL = {
 }
 CLASS_ORDER = ["specific", "nonspecific_binder", "nonbinder"]
 
+# One oracle -> colour map for the WHOLE figure. Colour follows the ORACLE, never its
+# position in the list, so adding or dropping an arm never repaints the others. The
+# earlier per-panel `["#2a78d6", "#eb6834"][k % 2]` cycled after two oracles and made
+# protenix indistinguishable from rf3 in the bar panel.
+ORACLE_COLOR = {"rf3": "#2a78d6", "esmfold2": "#eb6834", "protenix": "#1baf7a",
+                "openfold3": "#eda100", "rf3_templated": "#e87ba4"}
+ORACLE_ORDER = ("rf3", "esmfold2", "protenix", "openfold3", "rf3_templated")
+
 # minPAE low = confident, so invert the ramp: dark = low = salient
 CMAP = LinearSegmentedColormap.from_list("minpae", list(reversed(BLUE_RAMP)))
 
@@ -105,7 +113,9 @@ def main():
         print("no per-fold CSVs found -- nothing to plot")
         return 1
 
-    oracles = [o for o in ("rf3", "protenix") if o in folds]
+    # Fixed order, not dict order: rf3 first (the chosen oracle), then by descending
+    # argmin so the panels read best-to-worst.
+    oracles = [o for o in ORACLE_ORDER if o in folds]
 
     # protein order: by class, then by name, from whichever summary we have
     prot_class = {}
@@ -120,14 +130,17 @@ def main():
             if r.get("on_target"):
                 on_target_of[r["protein"]] = r["on_target"]
 
-    fig = plt.figure(figsize=(15.5, 11), facecolor=SURFACE)
-    gs = fig.add_gridspec(2, len(oracles), height_ratios=[1.5, 1.0],
-                          hspace=0.30, wspace=0.24,
-                          left=0.115, right=0.975, top=0.90, bottom=0.085)
+    ncol = min(len(oracles), 2)
+    hrows = (len(oracles) + ncol - 1) // ncol
+    fig = plt.figure(figsize=(7.9 * ncol, 5.2 * hrows + 5.0), facecolor=SURFACE)
+    gs = fig.add_gridspec(hrows + 1, ncol,
+                          height_ratios=[1.45] * hrows + [1.0],
+                          hspace=0.34, wspace=0.24,
+                          left=0.085, right=0.975, top=0.90, bottom=0.07)
 
     # ---------------- Panels A/B: heatmaps ----------------
     for k, oracle in enumerate(oracles):
-        ax = fig.add_subplot(gs[0, k])
+        ax = fig.add_subplot(gs[k // ncol, k % ncol])
         ax.set_facecolor(SURFACE)
         vals = {(r["protein"], r["dna_id"]): fnum(r["min_pae"]) for r in folds[oracle]}
         dna_present = [d for d in DNA_ORDER if any((p, d) in vals for p in proteins)]
@@ -147,7 +160,7 @@ def main():
         # colour the y tick labels by class -> identity is redundant with position
         for lbl, p in zip(ax.get_yticklabels(), proteins):
             lbl.set_color(CLASS_COLOR[prot_class[p]])
-        ax.set_title(f"{'AB'[k]}   minPAE — {oracle}", fontsize=11.5, weight="bold",
+        ax.set_title(f"{'ABCDE'[k]}   minPAE — {oracle}", fontsize=11.5, weight="bold",
                      color=TEXT_PRIMARY, loc="left", pad=10)
 
         # direct labels: the number in every cell (8x8 is small enough to read)
@@ -179,7 +192,7 @@ def main():
         cb.outline.set_visible(False)
 
     # ---------------- Panel C: ΔminPAE for specific TFs ----------------
-    axc = fig.add_subplot(gs[1, 0])
+    axc = fig.add_subplot(gs[hrows, 0])
     axc.set_facecolor(SURFACE)
     spec_prots = [p for p in proteins if prot_class[p] == "specific"]
     n_o = len(oracles)
@@ -196,13 +209,13 @@ def main():
                 any_delta = True
         if xs:
             axc.bar(xs, ys, width=width * 0.92,
-                    color=["#2a78d6", "#eb6834"][k % 2],
+                    color=ORACLE_COLOR.get(oracle, "#8a8880"),
                     label=oracle, zorder=3, linewidth=0)
     axc.axhline(0, color=TEXT_SECONDARY, lw=1.0, zorder=4)
     axc.set_xticks(range(len(spec_prots)))
     axc.set_xticklabels(spec_prots, fontsize=8.5, color=TEXT_PRIMARY)
     axc.set_ylabel("ΔminPAE (Å)", fontsize=9, color=TEXT_SECONDARY)
-    axc.set_title("C   ΔminPAE per specific TF   (>0 = own site read best)",
+    axc.set_title(f"{chr(65 + len(oracles))}   ΔminPAE per specific TF   (>0 = own site read best)",
                   fontsize=11.5, weight="bold", color=TEXT_PRIMARY, loc="left", pad=10)
     if any_delta:
         axc.legend(frameon=False, fontsize=8.5, labelcolor=TEXT_SECONDARY, ncol=n_o)
@@ -216,16 +229,15 @@ def main():
     # This is the decisive panel: it shows whether a given oracle's PAE puts
     # non-binders anywhere near binders. A useful oracle must leave a gap.
     if len(oracles) > 1:
-        axd = fig.add_subplot(gs[1, 1])
+        axd = fig.add_subplot(gs[hrows, 1])
         axd.set_facecolor(SURFACE)
-        ORACLE_COLOR = {"rf3": "#2a78d6", "protenix": "#eb6834"}
         ypos = {p: len(proteins) - 1 - i for i, p in enumerate(proteins)}
         for oracle in oracles:
             rows = {r["protein"]: r for r in summaries.get(oracle, [])}
             xs = [fnum(rows[p]["min_pae_min"]) for p in proteins if p in rows]
             ys = [ypos[p] for p in proteins if p in rows]
             axd.plot(xs, ys, marker="o", ls="", markersize=9,
-                     color=ORACLE_COLOR.get(oracle, "#2a78d6"),
+                     color=ORACLE_COLOR.get(oracle, "#8a8880"),
                      markeredgecolor=SURFACE, markeredgewidth=2.0,
                      label=oracle, zorder=4)
         # class bands behind the dots so the three arms are readable at a glance
@@ -238,7 +250,7 @@ def main():
             lbl.set_color(CLASS_COLOR[prot_class[p]])
         axd.set_xlabel("best minPAE achieved anywhere on the panel (Å)",
                        fontsize=9, color=TEXT_SECONDARY)
-        axd.set_title("D   can the oracle tell a non-binder from a binder?",
+        axd.set_title(f"{chr(66 + len(oracles))}   can the oracle tell a non-binder from a binder?",
                       fontsize=11.5, weight="bold", color=TEXT_PRIMARY, loc="left", pad=10)
         axd.grid(axis="x", color=GRID, lw=0.8, zorder=1)
         axd.set_axisbelow(True)
@@ -247,18 +259,23 @@ def main():
         axd.tick_params(length=0, labelsize=8, colors=TEXT_SECONDARY)
         handles = [plt.Line2D([], [], marker="o", ls="", markersize=9,
                               markeredgecolor=SURFACE, markeredgewidth=2.0,
-                              color=ORACLE_COLOR[o], label=o) for o in oracles]
-        handles += [plt.Line2D([], [], marker="s", ls="", markersize=7,
-                               color=CLASS_COLOR[c], label=CLASS_LABEL[c])
-                    for c in CLASS_ORDER if c in set(prot_class.values())]
+                              color=ORACLE_COLOR.get(o, "#8a8880"), label=o) for o in oracles]
+        # Deliberately NO class entries here. Class is already encoded twice in this
+        # panel -- the row background tint and the coloured y-tick labels -- and the
+        # class palette reuses the same blue/orange/green as oracle slots 1-3, so a
+        # combined legend would have one hue meaning two different things.
+        # widen the x-range by a third so the legend has somewhere to sit that is not
+        # on top of a data point, rather than pushing it outside where it gets clipped
+        lo, hi = axd.get_xlim()
+        axd.set_xlim(lo, lo + (hi - lo) * 1.34)
         axd.legend(handles=handles, frameon=False, fontsize=7.8,
                    labelcolor=TEXT_SECONDARY, loc="upper right")
 
     fig.suptitle("Does ΔminPAE separate specific DNA binding from non-specific and non-binding?",
-                 fontsize=13.5, weight="bold", color=TEXT_PRIMARY, x=0.115, ha="left", y=0.965)
-    fig.text(0.115, 0.928,
-             "8 natural controls × 8 DNA targets, folded MSA-free against a shared 24-bp panel, "
-             "on two open AF3-class oracles.  Black ring = that TF's cognate site.",
+                 fontsize=13.5, weight="bold", color=TEXT_PRIMARY, x=0.085, ha="left", y=0.975)
+    fig.text(0.085, 0.952,
+             f"8 natural controls × 8 DNA targets, folded MSA-free against a shared 24-bp panel, on "
+             f"{len(oracles)} open AF3-class oracles.  Black ring = that TF's cognate site.",
              fontsize=9, color=TEXT_SECONDARY, ha="left")
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
