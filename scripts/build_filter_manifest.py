@@ -66,10 +66,26 @@ def main() -> int:
             except (OSError, ValueError):
                 pass
 
+        # The per-token PAE, for the specificity block's on-target minPAE entry gate.
+        # `*_summary_confidences.json` holds only scalars; the matrix is in the sibling
+        # `*_confidences.json`, so the glob must EXCLUDE the summary file or it matches
+        # both and may pick the one with no `pae` key.
+        pae_path = None
+        conf = [p for p in sorted(glob.glob(os.path.join(args.raw_dir, r["fold_id"], "**",
+                                                         "*_confidences.json"),
+                                            recursive=True),
+                                  key=lambda p: (p.count(os.sep), len(p)))
+                if not p.endswith("_summary_confidences.json")]
+        if conf:
+            pae_path = conf[0]
+
         rows.append({
             "design_id": r["fold_id"], "oracle": "rf3",
             "design_path": design, "refold_path": cands[0],
-            "iptm": iptm,
+            "iptm": iptm, "pae_path": pae_path,
+            "protein_chain": r.get("protein_chain", "A"),
+            "dna_chains": r.get("dna_chains", ["B", "C"]),
+            "protein_len": r.get("protein_len"),
             "backbone": r["backbone"], "seq_id": r["seq_id"],
             "overall_confidence": r.get("overall_confidence"),
             "ligand_confidence": r.get("ligand_confidence"),
@@ -79,7 +95,10 @@ def main() -> int:
         json.dump(rows, f, indent=2)
     print(f"{len(rows)} design/refold pairs -> {args.out}")
     n_iptm = sum(1 for r in rows if r["iptm"] is not None)
+    n_pae = sum(1 for r in rows if r["pae_path"] is not None)
     print(f"  ipTM recovered for {n_iptm}/{len(rows)}")
+    print(f"  PAE matrix found for {n_pae}/{len(rows)} (needed for the specificity-block "
+          "minPAE entry gate)")
     if missing:
         print(f"  MISSING ({len(missing)}):")
         for m in missing[:10]:

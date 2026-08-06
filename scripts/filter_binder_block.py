@@ -28,6 +28,7 @@ import argparse
 import csv
 import json
 import os
+import sys
 
 import numpy as np
 import biotite.structure as struc
@@ -238,6 +239,34 @@ def analyze_one(design_path, refold_path):
             "protein_dna_hbonds": hb_total, "major_groove_hbonds": hb_major}
 
 
+def _on_target_min_pae(job):
+    """On-target minPAE for one refold, or None if no PAE is available.
+
+    The specificity block's entry gate is an on-target minPAE cut, but nothing computed
+    it: this script emitted RMSD/ipTM/H-bonds only, so the criterion could not be
+    evaluated at all -- even though the PAE was already sitting on disk in each rf3
+    refold's `*_confidences.json`. Reuses compute_delta_minpae.py's loader and masks so
+    the number is defined identically here and in the ΔminPAE ranking; two independent
+    implementations of a minimum over the same matrix is exactly how a silent
+    inconsistency gets in.
+    """
+    path = job.get("pae_path")
+    if not path or path == "FILL_AFTER_FOLD" or not os.path.exists(path):
+        return None
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from compute_delta_minpae import load_pae, protein_dna_token_masks, min_pae, \
+        _protein_len_range
+    try:
+        pae, chains = load_pae(path)
+        prot, dna = protein_dna_token_masks(
+            pae.shape[0], chains,
+            job.get("protein_chain", "A"), job.get("dna_chains", ["B", "C"]),
+            _protein_len_range(job), [tuple(r) for r in job.get("dna_ranges", [])])
+        return round(min_pae(pae, prot, dna), 4)
+    except Exception:
+        return None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--manifest", required=True,
@@ -254,6 +283,12 @@ def main():
                     help="override the stage default (8.0 pre_resample, 3.0 post_resample)")
     ap.add_argument("--iptm-gate", type=float, default=0.7,
                     help="ignored at --stage pre_resample")
+    ap.add_argument("--min-pae-gate", type=float, default=None,
+                    help="also require on-target minPAE < this, for selecting specificity-"
+                         "block entrants. The paper's literal 1.25 does NOT transfer to rf3 "
+                         "(1/5 real TFs clear it); the recalibrated rf3 cut is 6.6 -- see "
+                         "specs/specificity_block/fold_config.json for the derivation. "
+                         "Requires pae_path in the manifest.")
     args = ap.parse_args()
 
     # Paper sequence (Methods, "Binder block"): fold -> RMSD < 8 A -> LigandMPNN
@@ -274,12 +309,13 @@ def main():
                  "n_ca_matched": 0, "protein_dna_hbonds": None,
                  "major_groove_hbonds": None, "error": str(e)}
         row = {"design_id": j["design_id"], "oracle": j.get("oracle", "unknown"),
-               "iptm": j.get("iptm"), "runtime_s": j.get("runtime_s"), "gpu": j.get("gpu"), **m}
+               "iptm": j.get("iptm"), "runtime_s": j.get("runtime_s"), "gpu": j.get("gpu"),
+               "min_pae": _on_target_min_pae(j), **m}
         all_rows.append(row)
 
     cols = ["design_id", "oracle", "dna_aligned_ca_rmsd", "protein_only_ca_rmsd", "iptm",
-            "protein_dna_hbonds", "major_groove_hbonds", "n_ca_matched", "error",
-            "runtime_s", "gpu"]
+            "min_pae", "protein_dna_hbonds", "major_groove_hbonds", "n_ca_matched",
+            "error", "runtime_s", "gpu"]
     os.makedirs(os.path.dirname(args.oracle_comparison) or ".", exist_ok=True)
     with open(args.oracle_comparison, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
@@ -289,6 +325,10 @@ def main():
     def passes(r):
         if r["dna_aligned_ca_rmsd"] is None or r["dna_aligned_ca_rmsd"] >= args.rmsd_gate:
             return False
+        if args.min_pae_gate is not None:
+            # an unavailable minPAE must NOT silently pass a gate that was asked for
+            if r.get("min_pae") is None or r["min_pae"] >= args.min_pae_gate:
+                return False
         if not use_iptm:
             return True
         return r.get("iptm") is not None and r["iptm"] > args.iptm_gate
@@ -301,7 +341,17 @@ def main():
 
     print(f"analyzed {len(all_rows)} (design,oracle) rows -> {args.oracle_comparison}")
     gate = f"RMSD<{args.rmsd_gate}" + (f", ipTM>{args.iptm_gate}" if use_iptm else " (no ipTM gate)")
+    if args.min_pae_gate is not None:
+        gate += f", minPAE<{args.min_pae_gate}"
     print(f"stage={args.stage}: {len(passers)} passers ({gate}) -> {args.out}")
+    n_pae = sum(1 for r in all_rows if r.get("min_pae") is not None)
+    if n_pae:
+        vals = sorted(r["min_pae"] for r in all_rows if r.get("min_pae") is not None)
+        print(f"  minPAE recovered for {n_pae}/{len(all_rows)}: "
+              f"min {vals[0]}, median {vals[len(vals) // 2]}, max {vals[-1]}")
+    elif args.min_pae_gate is not None:
+        print("  WARNING: --min-pae-gate was given but NO row had a readable PAE, so every "
+              "row failed the gate. Check that the manifest carries pae_path.")
     if args.stage == "pre_resample":
         print("  -> feed these to LigandMPNN resampling, then re-run with "
               "--stage post_resample on the resampled folds")

@@ -7,8 +7,8 @@
   "batch_size": 5,
   "number_of_batches": 1,
 
-  "_chains_note": "chains_to_design = the designed PROTEIN chain only (the DNA chains are held as context, never designed). The exact chain id depends on how rfd3na labels the designed chain in its output PDB -- set it from the actual output (typically the chain after the DNA chains). Do NOT list the DNA chains here.",
-  "chains_to_design": "SET_FROM_RFD3NA_OUTPUT",
+  "_chains_note": "chains_to_design = the designed PROTEIN chain only (the DNA chains are held as context, never designed). 'C' was READ OFF a real relaxed rfd3na backbone on 2026-08-06, not assumed: rfd3na emits the fixed target duplex first, so the output is DNA A(12 nt) + DNA B(12 nt) + protein C. This is the OPPOSITE of the refold layout (protein A + DNA B,C), and that mismatch is what caused the Stage-7 RMSD bug. Re-read it from the relaxed PDB if the contig order changes. Do NOT list the DNA chains here.",
+  "chains_to_design": "C",
 
   "_fixed_residues_note": "Unlike enzyme design, there are no catalytic residues to hold fixed here -- the whole protein interface is designed. Leave fixed_residues empty unless a specific motif is being grafted.",
 

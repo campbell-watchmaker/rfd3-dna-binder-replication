@@ -319,3 +319,101 @@ def test_esmfold2_refuses_a_matrix_with_no_token_sidecar(tmp_path):
     rec["pae_tokens_path"] = None
     with pytest.raises(ValueError, match="sidecar"):
         ccm._load_esmfold2(rec)
+
+
+# --- predicted templates: two modes, one gate set (added 2026-08-06) --------
+# make_predicted_templates.py grew a --design-fasta mode so the specificity block can
+# template designs, not just the control panel. The two gates that mattered in the
+# control arm must survive into the design path: zero surviving nucleotide residues
+# (a DNA-carrying template hands the fold the docking geometry it is meant to predict)
+# and an exact residue count (a truncated template is a different molecule).
+
+import make_predicted_templates as mpt  # noqa: E402
+
+
+def _write_cif(path, n_prot=3, n_dna=0):
+    """A minimal protein(+DNA) CIF via biotite, so extract() sees real structure."""
+    import biotite.structure as struc
+    import biotite.structure.io.pdbx as pdbx
+    n = n_prot + n_dna
+    arr = struc.AtomArray(n)
+    arr.coord = np.arange(n * 3, dtype=float).reshape(n, 3)
+    arr.chain_id = np.array(["A"] * n_prot + ["B"] * n_dna)
+    arr.res_id = np.array(list(range(1, n_prot + 1)) + list(range(1, n_dna + 1)))
+    arr.res_name = np.array(["ALA"] * n_prot + ["DA"] * n_dna)
+    arr.atom_name = np.array(["CA"] * n_prot + ["C1'"] * n_dna)
+    arr.element = np.array(["C"] * n)
+    arr.hetero = np.array([False] * n)
+    f = pdbx.CIFFile()
+    pdbx.set_structure(f, arr)
+    f.write(str(path))
+
+
+def test_extract_keeps_protein_and_drops_dna(tmp_path):
+    src, out = tmp_path / "in.cif", tmp_path / "out.cif"
+    _write_cif(src, n_prot=3, n_dna=4)
+    n_res, chains = mpt.extract(str(src), str(out), expect_residues=3, expect_chains=1)
+    assert (n_res, chains) == (3, ["A"])
+    import biotite.structure as struc
+    import biotite.structure.io.pdbx as pdbx
+    back = pdbx.get_structure(pdbx.CIFFile.read(str(out)), model=1)
+    assert struc.get_residue_count(back[struc.filter_nucleotides(back)]) == 0
+
+
+def test_extract_rejects_a_truncated_template(tmp_path):
+    """The failure that killed the crystal-chain approach: 1AAY models 85 of 90 residues."""
+    src, out = tmp_path / "in.cif", tmp_path / "out.cif"
+    _write_cif(src, n_prot=3)
+    with pytest.raises(ValueError, match="expected 5"):
+        mpt.extract(str(src), str(out), expect_residues=5, expect_chains=1)
+    assert not out.exists(), "a mismatched template must not be written"
+
+
+def test_extract_rejects_wrong_chain_count(tmp_path):
+    src, out = tmp_path / "in.cif", tmp_path / "out.cif"
+    _write_cif(src, n_prot=3)
+    with pytest.raises(ValueError, match="expected 2 chain"):
+        mpt.extract(str(src), str(out), expect_residues=3, expect_chains=2)
+
+
+def test_design_jobs_expect_one_chain_and_the_fasta_length(tmp_path):
+    """A design is a single chain -- unlike the panel's 2-copy dimers, so the panel's
+    `copies` cannot be reused as expect_chains here."""
+    fa = tmp_path / "s.fasta"
+    fa.write_text(">ori1_0_3_s1\nMKTAYIAKQR\n>ori2_0_1_s4\nMKTAYIAK\n")
+    jobs = mpt._design_jobs(str(fa))
+    assert jobs == [("ori1_0_3_s1", "ori1_0_3_s1", 10, 1, True),
+                    ("ori2_0_1_s4", "ori2_0_1_s4", 8, 1, True)]
+
+
+def test_control_jobs_still_carry_multi_copy_expectations():
+    jobs = {j[0]: j for j in mpt._control_jobs(None)}
+    # MAX_bHLH and LambdaRep are 2-chain in the panel recipe
+    assert jobs["MAX_bHLH"][3] == 2, jobs["MAX_bHLH"]
+    assert jobs["LambdaRep"][3] == 2, jobs["LambdaRep"]
+    assert jobs["Zif268"][3] == 1
+    # non-binders template off the neutral scramble fold, not an on-target
+    assert jobs["Ubiquitin"][1].endswith("__scramble")
+    assert jobs["Ubiquitin"][4] is False
+    assert jobs["Zif268"][4] is True
+
+
+def test_design_template_end_to_end_names_file_for_build_allbyall(tmp_path):
+    """build_allbyall_inputs.py:128 looks for exactly <design_id>_template.cif."""
+    import subprocess
+    raw = tmp_path / "raw" / "ori1_0_3_s1"
+    raw.mkdir(parents=True)
+    _write_cif(raw / "ori1_0_3_s1_model.cif", n_prot=10, n_dna=6)
+    fa = tmp_path / "s.fasta"
+    fa.write_text(">ori1_0_3_s1\nMKTAYIAKQR\n")
+    out = tmp_path / "tmpl"
+    r = subprocess.run([sys.executable,
+                        os.path.join(os.path.dirname(__file__), "..", "analysis",
+                                     "oracle_controls", "make_predicted_templates.py"),
+                        "--design-fasta", str(fa), "--raw-dir", str(tmp_path / "raw"),
+                        "--out-dir", str(out)], capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (out / "ori1_0_3_s1_template.cif").is_file()
+    man = json.load(open(out / "templates_manifest.json"))
+    assert man[0]["contains_nucleotide"] is False
+    assert man[0]["n_residues"] == 10

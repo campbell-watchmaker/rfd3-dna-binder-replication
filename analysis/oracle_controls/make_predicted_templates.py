@@ -40,8 +40,30 @@ Only the protein chains are written. DNA and ligands are dropped, so no
 protein-DNA docking geometry reaches the template -- verified by asserting zero
 nucleotide residues in the output.
 
+TWO MODES (the design mode added 2026-08-06)
+--------------------------------------------
+    --controls-panel   the 5+3 natural-TF control panel. Labels and expected residue
+                       counts come from curated_controls.json; the source fold is the
+                       protein's on-target (or neutral `scramble`) row.
+    --design-fasta     the real pipeline: one template per DESIGN, expected residue count
+                       from the FASTA sequence itself and expect_chains=1 (a design is a
+                       single chain, unlike the panel's 2-copy dimers). The source fold is
+                       that design's own Stage-6 refold -- which is exactly the paper's
+                       "most recent AF3 prediction before the all-by-all folding".
+
+Both modes share `extract()` verbatim, so the design path keeps the two gates that were
+paid for in the control arm: zero surviving nucleotide residues, and an exact
+residue-count match against the input sequence. Either one failing is what stops a
+DNA-carrying or truncated template silently poisoning the all-by-all.
+
 Usage:
-    python make_predicted_templates.py --raw-dir <raw/rf3> --out-dir <templates_predicted>
+    # control panel
+    python make_predicted_templates.py --controls-panel \
+        --raw-dir <raw/rf3> --out-dir <templates_predicted>
+
+    # designs, for the specificity block
+    python make_predicted_templates.py --design-fasta survivors.fasta \
+        --raw-dir <raw/stage6> --out-dir <templates_predicted>
 """
 from __future__ import annotations
 import argparse
@@ -95,50 +117,84 @@ def extract(cif_path: str, out_path: str, expect_residues: int, expect_chains: i
     return n_res, chains
 
 
+def _control_jobs(controls_path):
+    """[(label, source_fold, expect_residues, expect_chains, is_on_target)] for the panel."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    controls = load_controls(controls_path or os.path.join(here, "curated_controls.json"))
+    return [(c["label"], source_fold(c["label"]),
+             c["protein_length"] * c["copies"], c["copies"],
+             c["label"] in ON_TARGET)
+            for c in controls]
+
+
+def _design_jobs(fasta_path):
+    """Same tuple shape, for designs read from a survivors FASTA.
+
+    The source fold is the design's own Stage-6 refold directory, named by the FASTA
+    record -- which is the fold_id build_fold_inputs.py emitted. expect_chains is 1: a
+    design is a single protein chain, so anything else means the refold CIF is not what
+    this label claims.
+    """
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    "..", "..", "scripts"))
+    from build_fold_inputs import read_fasta
+    return [(name, name, len(seq), 1, True) for name, seq in read_fasta(fasta_path)]
+
+
 def main():
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--raw-dir", required=True, help="downloaded untemplated rf3 results")
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--raw-dir", required=True,
+                    help="downloaded untemplated rf3 results, one subdir per fold")
     ap.add_argument("--out-dir", required=True)
-    ap.add_argument("--controls", default=None)
+    mode = ap.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--controls-panel", action="store_true",
+                      help="the natural-TF control panel (labels from curated_controls.json)")
+    mode.add_argument("--design-fasta",
+                      help="one template per design; residue count from the sequence, "
+                           "expect_chains=1")
+    ap.add_argument("--controls", default=None, help="--controls-panel only")
     args = ap.parse_args()
 
-    here = os.path.dirname(os.path.abspath(__file__))
-    controls = load_controls(args.controls or os.path.join(here, "curated_controls.json"))
+    jobs = _design_jobs(args.design_fasta) if args.design_fasta \
+        else _control_jobs(args.controls)
+    if not jobs:
+        print("no templates to build (empty controls list / FASTA)", file=sys.stderr)
+        return 1
     os.makedirs(args.out_dir, exist_ok=True)
 
     report, problems = [], []
-    for c in controls:
-        fold = source_fold(c["label"])
+    for label, fold, exp_res, exp_chains, on_target in jobs:
         hits = sorted(glob.glob(os.path.join(args.raw_dir, fold, "**", "*_model.cif"),
                                 recursive=True),
                       key=lambda p: (p.count(os.sep), len(p)))
         if not hits:
-            problems.append(f"{c['label']}: no predicted CIF under {args.raw_dir}/{fold}")
+            problems.append(f"{label}: no predicted CIF under {args.raw_dir}/{fold}")
             continue
-        out = os.path.join(args.out_dir, f"{c['label']}_template.cif")
+        out = os.path.join(args.out_dir, f"{label}_template.cif")
         try:
-            n_res, chains = extract(hits[0], out,
-                                    expect_residues=c["protein_length"] * c["copies"],
-                                    expect_chains=c["copies"])
+            n_res, chains = extract(hits[0], out, expect_residues=exp_res,
+                                    expect_chains=exp_chains)
         except Exception as e:
-            problems.append(f"{c['label']}: {e}")
+            problems.append(f"{label}: {e}")
             continue
         report.append({
-            "label": c["label"], "template_cif": out, "source_fold": fold,
-            "source_is_on_target": c["label"] in ON_TARGET,
+            "label": label, "template_cif": out, "source_fold": fold,
+            "source_is_on_target": on_target,
             "chain_ids": chains, "n_residues": n_res,
-            "expected_residues": c["protein_length"] * c["copies"],
-            "protein_copies": c["copies"], "contains_nucleotide": False,
+            "expected_residues": exp_res,
+            "protein_copies": exp_chains, "contains_nucleotide": False,
         })
 
     with open(os.path.join(args.out_dir, "templates_manifest.json"), "w") as f:
         json.dump(report, f, indent=2)
 
-    print(f"predicted templates written: {len(report)}/{len(controls)} -> {args.out_dir}\n")
-    print(f"  {'protein':11s} {'res':>5s} {'exp':>5s} {'chains':>8s}  source fold")
-    print("  " + "-" * 62)
+    print(f"predicted templates written: {len(report)}/{len(jobs)} -> {args.out_dir}\n")
+    w = max([11] + [len(r["label"]) for r in report])
+    print(f"  {'protein':{w}s} {'res':>5s} {'exp':>5s} {'chains':>8s}  source fold")
+    print("  " + "-" * (w + 51))
     for r in report:
-        print(f"  {r['label']:11s} {r['n_residues']:5d} {r['expected_residues']:5d} "
+        print(f"  {r['label']:{w}s} {r['n_residues']:5d} {r['expected_residues']:5d} "
               f"{','.join(r['chain_ids']):>8s}  {r['source_fold']}"
               f"{'' if r['source_is_on_target'] else '  (neutral ref)'}")
     if problems:

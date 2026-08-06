@@ -10,8 +10,23 @@ designs and their on-target minPAE recorded.
 
 ## Stage 0 — select entrants (CPU, here)
 
-From the binder-block passers, keep those with **on-target minPAE < 1.25**
-(paper gate). These backbones enter the specificity block.
+From the binder-block passers, keep those with on-target **minPAE < 6.6 Å**.
+
+> **This is not the paper's number, and the substitution is deliberate.** The paper
+> gates at `minPAE < 1.25`, measured on AF3. Applied literally to rf3 output it admits
+> almost nobody: of five real, crystallographically-characterised TFs folded against
+> their own cognate sites, **1/5** clears 1.25. The offset is rf3 calibration rather
+> than a modelling error — it survived adding MSAs (−0.11 Å), 5× sampling (≈0) and
+> protein templating (−0.93 to +0.11 Å). Measured rf3 on-target minPAE: specific TFs
+> 1.07–3.88 Å, non-specific binder (Sac7d) 6.60 Å, non-binders (Ubiquitin/GFP)
+> 15.7–16.2 Å, so 6.6 Å is where binders separate from non-binders on measured data.
+> Full derivation in `docs/replication_log.md`. **Provisional — it rests on 5
+> proteins.** The *success* criterion downstream is the paper's own calibration-free
+> `ΔminPAE > 0`, which does transfer (4/5 TFs).
+
+minPAE for a binder-block refold comes from `scripts/filter_binder_block.py`
+(`--min-pae-out`), which reads the PAE already on disk in each rf3 refold's
+`*_confidences.json`.
 
 ## Stage 1 — build the off-target set (CPU, here)
 
@@ -23,7 +38,19 @@ python scripts/make_offtarget_set.py \
 ```
 
 Produces **10** folds per design for PRNP: the on-target (the ΔminPAE reference)
-plus the 9 other Table 1 targets.
+plus the 9 other Table 1 targets, **every one padded to a common 12 bp**.
+
+> **Padding, added 2026-08-06 — a deviation from the paper.** 4 of the 9 Table 1
+> decoys are 10 bp against a 12-bp on-target. minPAE is a *minimum* over protein×DNA
+> token pairs, so a shorter duplex simply offers fewer pairs to minimise over and is
+> systematically disadvantaged as an off-target — biasing ΔminPAE upward for reasons
+> that have nothing to do with specificity. Every target is therefore centred in a
+> verified-neutral flank, reusing `build_duplex()`/`verify_panel()` from
+> `analysis/oracle_controls/control_panel.py`; `verify_panel()` also refuses the panel
+> if a padded decoy picks up another target's motif from its flank. This is the same
+> confound the oracle control panel was padded to 24 bp to remove, and padding there
+> did not degrade discrimination (rf3 argmin 4/5 on padded duplexes). The paper appears
+> to fold Table 1 sites at native length. `--no-pad` reproduces that.
 
 > **Corrected 2026-07-31.** This stage used to emit 46 targets, folding the 36
 > single-base-substitution variants alongside the decoys. That was wrong on two
@@ -57,11 +84,23 @@ Fold resampled sequences against the **on-target** and keep the good ones
 (paper: DNA-aligned RMSD < 1.5 Å, ipTM > 0.9) before the expensive all-by-all:
 
 ```bash
-python scripts/build_fold_inputs.py --fasta <resample>.fasta \
+python scripts/build_fold_inputs.py \
+    --ligandmpnn-dir <resample raw dir> \
     --dna TGAGGAGAGGAG --out-dir specs/specificity_block/on_fold_inputs
-# submit protenix folds; filter with scripts/filter_binder_block.py at the
-# tighter specificity gates (--rmsd-gate 1.5 --iptm-gate 0.9)
+# submit rf3 folds, then:
+python scripts/build_filter_manifest.py \
+    --refold-manifest specs/specificity_block/on_fold_inputs/folds_manifest.json \
+    --relaxed-dir <entrant backbones> --raw-dir <downloaded results> \
+    --out filter_manifest.json
+python scripts/filter_binder_block.py --manifest filter_manifest.json \
+    --target-dna TGAGGAGAGGAG --stage post_resample \
+    --rmsd-gate 1.5 --iptm-gate 0.9 --out results/specificity_block/prefilter.csv
 ```
+
+`--stage post_resample` is **required** for the ipTM gate to apply at all
+(`filter_binder_block.py`), and `--ligandmpnn-dir` reads the resample's `.fa` files
+directly, dropping LigandMPNN's WT input record by its missing `id=` rather than by
+position.
 
 ## Stage 4 — templated all-by-all fold (GPU, pecli)
 

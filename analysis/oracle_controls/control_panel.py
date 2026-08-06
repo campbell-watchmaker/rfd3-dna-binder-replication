@@ -201,16 +201,25 @@ def build_panel(fixed_bp: int = FIXED_BP):
     return out
 
 
-def verify_panel(panel: dict) -> list:
+def verify_panel(panel: dict, motifs: dict | None = None,
+                 flank: str = NEUTRAL_FLANK) -> list:
     """Check that no duplex carries a motif it is not supposed to.
 
     Every padded duplex is scanned (both strands) for every panel motif. A hit
     that is not the target's own motif is a contamination: it would make an
     intended off-target a partial on-target and silently compress ΔminPAE.
     Returns a list of problem strings (empty == clean).
+
+    `motifs` ({id: motif}) defaults to this module's DNA_PANEL. It is a parameter
+    so the specificity block's off-target panel -- a different set of sites, padded
+    the same way for the same reason -- can reuse this check rather than
+    reimplementing it (scripts/make_offtarget_set.py).
     """
     problems = []
-    motifs = {k: v[0].upper() for k, v in DNA_PANEL.items()}
+    if motifs is None:
+        motifs = {k: v[0].upper() for k, v in DNA_PANEL.items()}
+    else:
+        motifs = {k: v.upper() for k, v in motifs.items()}
     for dna_id, rec in panel.items():
         sense = rec["sense"]
         both = f"{sense}|{revcomp(sense)}"
@@ -228,8 +237,8 @@ def verify_panel(panel: dict) -> list:
                     f"{dna_id} ({sense}) unexpectedly contains {mid} motif {motif}")
     # the flank itself must be clean
     for mid, motif in motifs.items():
-        if motif in NEUTRAL_FLANK or revcomp(motif) in NEUTRAL_FLANK:
-            problems.append(f"NEUTRAL_FLANK contains {mid} motif {motif}")
+        if motif in flank or revcomp(motif) in flank:
+            problems.append(f"neutral flank contains {mid} motif {motif}")
     return problems
 
 

@@ -102,7 +102,13 @@ def main():
                     help="emit sequence-only specs. This is NOT the paper's protocol for "
                          "the all-by-all and measurably lowers ΔminPAE; use only to "
                          "reproduce the untemplated comparison.")
-    ap.add_argument("--skip-wt", action="store_true")
+    ap.add_argument("--skip-wt", action="store_true",
+                    help="drop record 0 of the FASTA. DANGEROUS on a survivors FASTA: this "
+                         "is positional, so if the WT input record has already been "
+                         "filtered out upstream it silently deletes a real design. Only use "
+                         "it on a raw LigandMPNN FASTA -- and prefer feeding one of those "
+                         "through build_fold_inputs.py, which identifies the WT record by "
+                         "its missing `id=` instead.")
     args = ap.parse_args()
 
     if not args.no_template and not args.template_dir:

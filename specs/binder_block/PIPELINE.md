@@ -14,10 +14,14 @@ Fold the DNA-only duplex to B-form. Input already prepared:
 `targets/prnp/prnp_fold_input.json` (both strands, seed 42).
 
 ```bash
-pecli prepare protenix --input targets/prnp/prnp_fold_input.json --seeds 1
+pecli prepare rf3 --input targets/prnp/prnp_fold_input.json --seed 42
 pecli submit <run>
 # → prnp_duplex.cif   (the folded target; feeds every downstream stage)
 ```
+
+> Was `pecli prepare protenix`. Changed to rf3 for consistency with every other fold
+> in the pipeline, and because a **protein-free** protenix fold turns out to be
+> impossible in pecli at all (issue #189) — the DNA-only duplex is exactly that case.
 
 ## Stage 1 — compute conditioning (CPU, here)
 
@@ -102,43 +106,74 @@ done
 for pdb in <relaxed>/*_relaxed.pdb; do
     pecli prepare ligandmpnn --input "$pdb" \
         --config specs/binder_block/ligandmpnn_config.json
-    # set chains_to_design to the designed protein chain (not the DNA chains)
     pecli submit <run>
 done
-# → FASTA of 5 sequences/backbone with overall_confidence / ligand_confidence
+# → <backbone>.fa per backbone: the WT input record, then 5 designs
 ```
 
-## Stage 6 — refold + validate, THREE oracles (GPU, pecli)
+`chains_to_design` is now set to `C` in the config, **read off a real relaxed
+backbone**: rfd3na emits the fixed duplex first, so its output is DNA A + DNA B +
+protein C. Note this is the *opposite* of the refold layout below (protein A + DNA
+B,C) — that mismatch is what caused the Stage 7 RMSD bug where protein Cα found zero
+overlap and the DNA aligned on the wrong strand.
 
-Build per-design complex inputs (protein sequence + both DNA strands) and fold
-with each oracle for the comparison (see `fold_config.json`):
+## Stage 6 — refold + validate on rf3 (GPU, pecli)
+
+Build per-design complex inputs (protein sequence + both DNA strands) and fold:
 
 ```bash
 python scripts/build_fold_inputs.py \
-    --fasta <ligandmpnn output>.fasta \
+    --ligandmpnn-dir <ligandmpnn raw dir> \
     --dna TGAGGAGAGGAG \
-    --out-dir specs/binder_block/fold_inputs
-for oracle in protenix openfold3 esmfold2; do
-    for cj in specs/binder_block/fold_inputs/*.json; do
-        pecli prepare $oracle --input "$cj"
-        pecli submit <run>
-    done
+    --out-dir folds/refold                # + folds_manifest.json
+for cj in folds/refold/*.json; do
+    [ "$(basename "$cj")" = folds_manifest.json ] && continue
+    pecli prepare rf3 --input "$cj" --diffusion-batch-size 1 --seed 42
+    pecli submit <run>
 done
 ```
+
+`--ligandmpnn-dir` reads the `.fa` files directly and drops LigandMPNN's WT input
+record by its **missing `id=`** rather than by position (dropping record 0 blindly
+deletes a real design from any already-filtered FASTA). No template here,
+deliberately: the gate below asks whether the designed sequence *independently* folds
+back into its backbone, and a template hands it the answer.
+
+**Oracle: rf3, settled empirically** — 4/5 argmin on the natural-TF control panel vs
+protenix 2/5 and openfold3 0/5, at $0.020/fold (~2× cheaper than protenix, ~14×
+cheaper than openfold3). See `analysis/oracle_controls/RESULTS.md`. esmfold2 ties rf3
+on discrimination and is better calibrated but costs 10×, so it is the spot-check
+oracle for top-ranked designs, not the panel-wide one.
+
+**Cost lever at scale:** `--top-n-per-backbone 1` folds one sequence per backbone
+instead of five. Refolding is 89% of a backbone's $0.112 cost, and the smoke test
+measured per-backbone spread in major-groove H-bonds far exceeding within-backbone
+spread (`[0,1,0,0,0]` vs `[13,0,13,0,7]`), i.e. backbone quality dominates sequence
+choice. Record it as a deviation — the paper folds 5/backbone at this gate.
 
 ## Stage 7 — filter + rank (CPU, here)
 
 ```bash
+python scripts/build_filter_manifest.py \
+    --refold-manifest folds/refold/folds_manifest.json \
+    --relaxed-dir relaxed --raw-dir raw/stage6 \
+    --out filter_manifest.json
 python scripts/filter_binder_block.py \
-    --designs <refolded cifs, tagged by oracle> \
-    --target-dna TGAGGAGAGGAG \
-    --out results/binder_block/passers.csv \
-    --oracle-comparison results/binder_block/oracle_comparison.csv
+    --manifest filter_manifest.json \
+    --stage pre_resample \
+    --out results/binder_block/passers_pre_resample.csv \
+    --oracle-comparison results/binder_block/all_designs.csv
 ```
 
-Gates (paper): DNA-aligned protein Cα-RMSD < 8 Å → resample → **< 3 Å, ipTM >
-0.7**, high H-bond counts. The oracle-comparison CSV records RMSD/ipTM/H-bonds
-**and** runtime per oracle for the protenix-vs-openfold3-vs-esmfold2 writeup.
+Gates (paper): DNA-aligned protein Cα-RMSD < 8 Å → LigandMPNN resample → **< 3 Å,
+ipTM > 0.7**, high H-bond counts. `--stage` selects which: `pre_resample` uses 8 Å and
+**no ipTM gate**, `post_resample` uses 3 Å + ipTM. Passing `--iptm-gate` at
+`pre_resample` silently does nothing.
+
+The comparison CSV also carries **`min_pae`**, read from each refold's
+`*_confidences.json`, which is what the specificity block's entry gate needs; add
+`--min-pae-gate 6.6` to apply it here (that cut is recalibrated for rf3 — see
+`specs/specificity_block/PIPELINE.md` Stage 0, *not* the paper's 1.25).
 
 ## Hand-off convention
 

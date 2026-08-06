@@ -287,3 +287,127 @@ true H-bond count rises to 50, i.e. roughly a third of candidates for a 36-atom 
 and the shipped 14-bp `na_binder_design.json` example specifies 16 atoms across 4 base
 positions on **both** strands, mixing base *and* phosphate/sugar atoms. Both suggest our
 6-atom, purine-strand-only, base-edge-only rule is narrower than upstream practice.
+
+
+## Phase 1 — specificity block made runnable (2026-08-06)
+
+The specificity block had never run. Fixing it turned up two deviations that need
+recording, one recalibrated threshold, and a script that could not have worked.
+
+### `build_fold_inputs.py` emitted a shape no oracle accepts
+
+`specs/binder_block/PIPELINE.md` Stage 6 and `specs/specificity_block/PIPELINE.md`
+Stage 3 both pointed at `scripts/build_fold_inputs.py`, which emitted
+`{"id": ..., "chains": [{"id","type","sequence"}, ...]}`. **No pecli oracle accepts
+that.** The smoke test worked around it with an ad-hoc emitter and never committed the
+fix, so the committed pipeline could not have folded a single design.
+
+It now emits the rf3 component shape, reads LigandMPNN `.fa` files directly, and writes
+the `folds_manifest.json` that `build_filter_manifest.py` consumes. Verified by
+re-emitting the smoke test's 50 Stage-6 inputs from the original LigandMPNN output: **all
+50 specs and every science-bearing manifest field are byte-identical** to the ones that
+actually ran.
+
+One behaviour changed deliberately. LigandMPNN writes its input sequence as record 0 of
+each `.fa`; the old `--skip-wt` dropped record 0 *positionally*, which silently deletes a
+real design from any FASTA that has already been filtered. The WT record is now
+identified by the **absence of `id=`** in its header, which is what actually
+distinguishes it. `build_allbyall_inputs.py --skip-wt` keeps the positional behaviour and
+now documents the hazard.
+
+### Deviation: off-target panel padded to a common length
+
+4 of the 9 Table 1 decoys are 10 bp against a 12-bp on-target. minPAE is a **minimum**
+over protein×DNA token pairs, so a shorter duplex simply offers fewer pairs to minimise
+over and is systematically disadvantaged as an off-target — biasing ΔminPAE upward for
+reasons unrelated to specificity. Every target is now centred in the verified-neutral
+flank at one length (12 bp for PRNP, so padding is 1 bp per side at most), reusing
+`build_duplex()`/`verify_panel()` from `analysis/oracle_controls/control_panel.py`.
+`verify_panel()` additionally refuses the panel if a padded decoy picks up another
+target's motif from its flank.
+
+Same confound the oracle control panel was padded to 24 bp to remove, where padding did
+not degrade discrimination (rf3 argmin 4/5 on padded duplexes). **The paper appears to
+fold Table 1 sites at native length**; `--no-pad` reproduces that. A previously emitted
+`same_length_as_on` field recorded the problem and was read by nothing.
+
+### Recalibrated: the specificity-block entry gate, minPAE < 1.25 → < 6.6
+
+**This replaces a paper number and the derivation is here, not buried in a config.**
+
+The paper gates entry at `minPAE < 1.25`, measured on AF3. Applied literally to rf3
+output it admits almost nobody: of five real, crystallographically-characterised TFs
+folded against their own cognate sites, **1/5** clears 1.25.
+
+The offset is rf3 calibration rather than a modelling error. It survived every
+intervention tried: adding deep MSAs (−0.11 Å), 5× sampling (≈0), and protein templating
+(−0.93 to +0.11 Å). Measured rf3 on-target minPAE across the control panel:
+
+| class | protein(s) | on-target minPAE |
+|---|---|---|
+| sequence-specific | Zif268, LambdaRep, MAX_bHLH, Engrailed, TBP | 1.07 – 3.88 Å |
+| non-specific duplex binder | Sac7d | 6.60 Å |
+| non-binders | Ubiquitin, GFP | 15.7 – 16.2 Å |
+
+A cut at **6.6 Å** is where binders separate from non-binders on measured data.
+**Provisional: it rests on 5 proteins.** The *success* criterion downstream stays the
+paper's own calibration-free **`ΔminPAE > 0`** — the criterion it reports as the one that
+"enriched for successful designs experimentally", and the one control-panel result that
+did transfer to rf3 (4/5 TFs). A sign test needs no recalibration; an absolute cut does.
+
+### minPAE is now emitted by the binder block
+
+The entry gate above was unevaluable: `filter_binder_block.py` emitted RMSD/ipTM/H-bonds
+only, though the PAE was already on disk in each rf3 refold's `*_confidences.json`. It
+now reports `min_pae` per design and gates on it with `--min-pae-gate`, reusing
+`compute_delta_minpae.py`'s loader and masks so the number is defined identically in both
+places. A requested gate **fails** rows with no readable PAE rather than passing them.
+
+Measured on the smoke test's 50 real refolds: minPAE recovered 50/50, min 2.84, median
+6.23, max 13.01. Note the glob must exclude `*_summary_confidences.json`, which holds
+scalars only and no matrix.
+
+### Two silent failures in the ΔminPAE ranking
+
+`compute_delta_minpae.py` had a **guaranteed crash**: `tuple(j["protein_len"])` against
+the int that `build_allbyall_inputs.py` emits. Python evaluates call arguments eagerly,
+so it fired on record 1 of every real manifest even when chain labels were present and
+the range was never consulted. Fixed in the consumer, not the emitters, because the
+scalar form is the repo's majority convention. It went unseen because every existing test
+hand-built a manifest that omitted the field; there is now an integration test that feeds
+the real emitter's output straight into the consumer.
+
+Worse, it **silently dropped** any design whose on-target fold was missing or
+uncollected — no warning, no count, no row — so a partially drained batch produced a
+shorter, entirely credible, wrong CSV with nothing downstream able to tell a design that
+ranked badly from one that was never scored. It now reports them, and warns rather than
+picks arbitrarily when a design has duplicate on-target rows.
+
+### Chain layout, measured not assumed
+
+`chains_to_design` was the literal placeholder `"SET_FROM_RFD3NA_OUTPUT"` in both
+LigandMPNN configs. Read off a real relaxed backbone it is **`C`**: rfd3na emits the
+fixed target duplex first, so the relaxed PDB is DNA A(12 nt) + DNA B(12 nt) + protein
+C(123 aa). This is the *opposite* of the refold layout (protein A + DNA B,C), and that
+mismatch is what caused the Stage-7 bug where protein Cα found zero overlap and the DNA
+aligned on the wrong strand.
+
+### Also corrected
+
+- `specs/specificity_block/fold_config.json` still specified protenix and the SBS panel;
+  `specs/binder_block/fold_config.json` still specified a three-oracle comparison and the
+  dead complex-JSON shape. Both rewritten to the measured rf3 configuration, with the
+  superseded content noted rather than deleted.
+- `PIPELINE.md` showed `--iptm-gate 0.9` without `--stage post_resample`, which silently
+  disables the ipTM gate.
+- Binder-block Stage 0 said `pecli prepare protenix` for the DNA-only duplex; a
+  protein-free protenix fold is impossible in pecli (issue #189). Now rf3.
+- `submit_templated_folds.py` indexed `rec["protein"]`, a KeyError on any specificity
+  manifest (which carries `design_id`); it now accepts either, prefers the manifest's
+  recorded `template_cif` over reconstructing the filename, and takes `--group` /
+  `--description` so it cannot mix two campaigns' runs into the control panel's group.
+- `make_predicted_templates.py` gained a `--design-fasta` mode (`expect_chains=1`,
+  residue count from the sequence) sharing `extract()` verbatim, so the design path keeps
+  the zero-nucleotide and residue-count gates that the crystal-template attempt paid for.
+
+Tests: 53 → 79.
