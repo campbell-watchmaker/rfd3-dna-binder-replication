@@ -447,3 +447,63 @@ emission from the binder block landed with Phase 1 above, because Stage 0 was
 unexecutable without them.
 
 Tests: 79 → 94.
+
+
+## Stop point — 2026-08-06
+
+Working tree clean, 94 tests passing, two commits on
+`analysis/delta-pae-oracle-controls`. Everything below is CPU-only work; **no GPU spend
+this session**.
+
+### Done
+
+Phase 1 complete except its validation run (below). Phase 2: sampling, the recalibrated
+entry gate, and minPAE emission are in; the two A/B arms (~$1.3) are not.
+
+### Blocked, and the exact blocker
+
+**The control-panel validation cannot run until the rf3 PAE files are back on disk.**
+The scratchpad holding them was cleaned. Re-downloading is free — the 64 runs are still
+`SUCCEEDED` — but the route is not the obvious one:
+
+1. **The `run_id`s committed in `analysis/oracle_controls/folds/rf3_manifest.json` do not
+   resolve.** `pecli status 5347ff` → `unknown run: 5347ff`. These are the IDs recovered
+   by regex from the submitter log after the manifest race, and at least some are wrong.
+   Do not trust that file's `run_id` field.
+2. `pecli runs --group oracle-controls-rf3` lists **63** SUCCEEDED rf3 runs (not 64 —
+   worth resolving), but the table **truncates the description**, so the fold_id cannot
+   be read from it. Real IDs: `analysis/oracle_controls/folds/` has none usable; a
+   scraped list is not committed.
+3. The mapping route that does work: `pecli results <id> --out <dir>` for each of the 63,
+   then map each directory to its fold by the emitted `<fold_id>_confidences.json`
+   filename. ~14 s per `pecli status` call, so avoid status entirely and download
+   directly.
+4. `collect_control_results.py --skip-status` is a trap here: it **refuses to download
+   anything not already present** (it only assumes-OK what is on disk). Run it without
+   the flag, or drive `pecli results` directly.
+
+Then: `analysis/oracle_controls/validate_specificity_block.py --control-manifest <that>
+--out-dir <scratch>` reshapes the panel into the specificity block's manifest schema,
+runs `scripts/compute_delta_minpae.py` over it, and asserts the recorded answer (argmin
+4/5, ΔminPAE > 0 for 4/5). It exits non-zero on disagreement. Its reshape logic is
+already unit-tested; only the end-to-end run is outstanding.
+
+### Next, in order
+
+1. Restore the 63–64 rf3 control PAEs (free) and run `validate_specificity_block.py`.
+   **Nothing should run on designs until this reproduces** — it is the only place where
+   the block's answer is known independently.
+2. Phase 2.5: the two A/B arms, 20 backbones each, 1 seq/backbone, rf3 — CFG on/off and
+   sampled vs fixed conditioning, ~$0.64 each. Compare with
+   `scripts/compare_conditioning_arms.py`. n=20 resolves only large effects.
+3. Phase 3 paper scale (~$367) — gated on 1 and 2 being green.
+
+### Carried forward, unresolved
+
+- **Placement, not foldability, is the failure mode** (9/50 folded to <3 Å protein-only
+  but sat >8 Å off after DNA alignment; median DNA-aligned RMSD ~30 Å). If Phase 2's arms
+  leave that unchanged, the next suspects are ori-token placement and the relax's DNA
+  restraint — not the H-bond conditioning.
+- The recalibrated 6.6 Å gate rests on 5 proteins.
+- CFG is on with no paper basis (foundry ships `False`).
+- The H-bond sampling *mechanism* is ours; the paper states only that the set is diverse.
