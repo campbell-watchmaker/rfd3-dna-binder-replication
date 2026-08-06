@@ -14,7 +14,8 @@ concrete reference designs to benchmark our returned designs against.
 
 ## Key parameters (from the papers, to hold fixed)
 
-**RFdiffusion3 / rfd3na sampler** (paper Fig. S4f; pecli `rfd3na` defaults match):
+**RFdiffusion3 / rfd3na sampler** (see the provenance correction below; pecli `rfd3na`
+defaults match):
 - protein length 120–150
 - step_scale (η) = 1.5, num_timesteps = 200, gamma_0 (γ₀) = 0.6
 - classifier-free guidance available (cfg_scale); DNA held fixed during diffusion
@@ -115,13 +116,16 @@ assumed. Findings that shaped the spec generator (`scripts/make_rfd3na_specs.py`
 - CFG: `use_classifier_free_guidance` + `cfg_features` (subset of `active_donor`,
   `active_acceptor`, `ref_atomwise_rasa`) + `cfg_scale` (default 1.5).
 - **Caveat to apply before submit:** the generator emits *all* candidate major-groove
-  atoms; conditioning on all of them over-constrains diffusion. Subset to the handful
-  of major-groove acceptors/donors on the poly-purine core actually being read (the
-  paper conditions on a selected subset). Documented in PIPELINE.md.
+  atoms; conditioning on all of them may over-constrain diffusion. Subset to the
+  handful of major-groove acceptors/donors on the poly-purine core actually being read.
+  Documented in PIPELINE.md. NB the parenthetical "(the paper conditions on a selected
+  subset)" that used to close this line was NOT verified and is now known to be
+  unsupported -- see the provenance correction below.
 
 **Sampler config** (`sampler_config.json`): `_smoke_test` (~10 designs, first pass per
 user decision) and `_full_run` (~1000 backbones/ori, paper scale) profiles. Params:
-num_timesteps 200, step_scale 1.5, gamma_0 0.6 (paper Fig. S4f; pecli rfd3na defaults).
+num_timesteps 200, step_scale 1.5, gamma_0 0.6 (pecli/foundry defaults; NOT paper-stated
+-- see the provenance correction below).
 
 **Refold oracle: three-way comparison** (user decision) — protenix + openfold3 +
 esmfold2 on the same designs, comparing fold quality (DNA-aligned RMSD, ipTM) AND
@@ -230,3 +234,56 @@ Unit-tested in `tests/test_specificity_block.py` (3 tests).
 - [ ] Post-generation analysis: TF sequence-space embedding map (analysis/tf_embedding/) — natural backdrop batched into the generation GPU session; designs overlaid after they return.
 - [ ] Figures + public writeup.
 - [ ] Reusable campaign-analysis skill.
+
+
+## Provenance correction — H-bond conditioning and CFG (2026-08-05)
+
+Two claims in this log and in `specs/binder_block/sampler_config.json` asserted paper
+backing they do not have. Both predate the smoke test, and 20 designs were generated
+under them. Recording the correction rather than quietly editing it away.
+
+**What the paper actually says about H-bond conditioning.** One sentence in Methods:
+
+> "Hydrogen bond conditioning [18] was applied during generation on candidate major
+> groove donor and acceptor atoms (Fig. S1)."
+
+No count. No atom names — `N7`/`O6`/`O4`/`N6`/`N4` appear nowhere in the paper. No
+statement of strand, and no statement tying the selection to an ori token's 6-bp span.
+Fig. S1 is in the supplement, which is unreachable (bioRxiv 403 direct, 429 through a
+text proxy across repeated attempts). The `[65]` that appears mid-sentence in the
+rendered text is a bibliography marker, not a count.
+
+So **"the paper conditions on a selected subset, e.g. the N7/O6 of the central G/A
+run" was never verified and is not supported.** Our 6-atom purine-strand rule is our
+construction.
+
+**The structural point, which matters more than the count.** From Results:
+
+> "we sample a variety of placements of the protein center of mass relative to the DNA
+> target using the RFD3 ori token feature, and **a diverse set of hydrogen bond (Hbond)
+> condition constraints**"
+
+The constraint set is *sampled to be diverse across designs*. A single fixed subset is
+therefore the wrong model whatever its size. The sampling mechanism is not stated, so
+it has to be chosen by us either way. This is consistent with the measured result that
+6 vs 8 atoms was indistinguishable over 100 refolds.
+
+**CFG has no paper basis at all.** The strings `cfg`, `cfg_scale`, `cfg_features`,
+`guidance` and `classifier-free` do not occur anywhere in Sehgal et al. The
+`(paper Fig. S4f)` attribution was wrong. Note also that foundry ships
+`use_classifier_free_guidance: False` as the default, so having it on is a deviation,
+not a match. It is kept on, re-attributed to Butcher et al. 2025's ablation — but that
+ablation's DNA effect is marginal (11% → 11.3% → 12.5% H-bond satisfaction), so this is
+a weakly-supported choice and a live candidate if generation underperforms.
+
+**What the paper DOES state for the sampler**, and which we do follow: one ori token
+per six consecutive base pairs, placed 3 Å toward the major groove from the 6-bp
+centroid perpendicular to the helical axis; 5100 scaffolds per ori; protein length
+120–150; `is_non_loopy` True; target DNA held fixed during diffusion.
+
+**Implementation signals on magnitude** (foundry, not the paper, and flagged as such):
+training subsamples H-bond atoms with the kept fraction interpolating 0.9 → 0.1 as the
+true H-bond count rises to 50, i.e. roughly a third of candidates for a 36-atom target;
+and the shipped 14-bp `na_binder_design.json` example specifies 16 atoms across 4 base
+positions on **both** strands, mixing base *and* phosphate/sugar atoms. Both suggest our
+6-atom, purine-strand-only, base-edge-only rule is narrower than upstream practice.

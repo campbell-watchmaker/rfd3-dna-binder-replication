@@ -47,13 +47,29 @@ python scripts/make_rfd3na_specs.py \
     --out-dir      specs/binder_block/rfd3na_specs
 ```
 
-> **Subset the H-bond conditioning before submit.** The generator emits every
-> candidate major-groove atom. Conditioning on all of them over-constrains
-> diffusion — pick the handful of major-groove acceptors/donors on the
-> poly-purine core you actually want the binder to read (the paper conditions on
-> a selected subset, e.g. the N7/O6 of the central G/A run). Edit the
-> `select_hbond_*` dicts in each spec accordingly. HBPLUS must be installed on
-> the GPU side for H-bond conditioning to work.
+> **H-bond conditioning is subset automatically** by `--hbond-strand` /
+> `--hbond-central-bases` (default: purine strand, central 3 bases per ori = 6 of
+> 36 atoms for PRNP). HBPLUS must be installed GPU-side for conditioning to work.
+>
+> **Provenance, corrected 2026-08-05.** This note used to say "the paper conditions
+> on a selected subset, e.g. the N7/O6 of the central G/A run". **That is not in the
+> paper.** Its only Methods sentence on the topic is *"Hydrogen bond conditioning was
+> applied during generation on candidate major groove donor and acceptor atoms
+> (Fig. S1)"* — no count, no atom names, no strand; Fig. S1 is in the unreachable
+> supplement. The subsetting rule here is ours.
+>
+> **The paper's actual model is sampling, not a fixed subset.** From Results: *"we
+> sample a variety of placements of the protein center of mass … and **a diverse set
+> of hydrogen bond (Hbond) condition constraints**"*. So a single fixed subset is the
+> wrong shape whatever its size, and the current rule is a stand-in. Consistent with
+> the measurement: 6 vs 8 atoms was indistinguishable over 100 refolds
+> (`scripts/compare_conditioning_arms.py`).
+>
+> Two upstream signals suggest our rule is narrower than practice, both
+> implementation rather than paper: foundry's training subsamples to roughly a third
+> of candidate atoms (~12 for a 36-atom target), and its shipped 14-bp
+> `na_binder_design.json` example specifies 16 atoms across **both** strands, mixing
+> base *and* phosphate/sugar atoms — where we use purine-strand base edges only.
 
 ## Stage 3 — diffuse binders (GPU, pecli, per ori spec)
 

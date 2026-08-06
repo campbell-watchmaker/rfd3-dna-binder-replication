@@ -80,8 +80,23 @@ def subset_for_ori(candidates, bp_start, bp_end, n_central, strand):
     """Pick the handful of atoms this ori's spec should condition on.
 
     WHY SUBSET AT ALL. The generator can emit every candidate atom (36 for a 12-bp
-    PRNP duplex), but conditioning on all of them over-constrains diffusion -- the
-    paper conditions on a selected subset, "e.g. the N7/O6 of the central G/A run".
+    PRNP duplex).
+
+    NOTE ON PROVENANCE, corrected 2026-08-05. This docstring used to assert that "the
+    paper conditions on a selected subset, e.g. the N7/O6 of the central G/A run".
+    That is NOT in the paper. A full-text read found exactly one Methods sentence on
+    the subject -- "Hydrogen bond conditioning was applied during generation on
+    candidate major groove donor and acceptor atoms (Fig. S1)" -- with no count, no
+    atom names, no strand, and Fig. S1 unreachable. The over-constraining rationale is
+    ours, not theirs.
+
+    What the paper DOES say, in Results, is that the constraint set is VARIED:
+    "we sample a variety of placements of the protein center of mass ... and a diverse
+    set of hydrogen bond (Hbond) condition constraints". So a single fixed subset is
+    the wrong model regardless of its size, and the rule below is a stand-in until
+    sampling is implemented. Measured: 6 vs 8 atoms was indistinguishable over 100
+    refolds (see analysis, commit 76350e1), which is consistent with the count not
+    being the thing that matters.
 
     THE RULE, in three parts:
       1. purine strand only (see purine_chain) -- the information-bearing face;
