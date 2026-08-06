@@ -417,3 +417,80 @@ def test_design_template_end_to_end_names_file_for_build_allbyall(tmp_path):
     man = json.load(open(out / "templates_manifest.json"))
     assert man[0]["contains_nucleotide"] is False
     assert man[0]["n_residues"] == 10
+
+
+# --- specificity-block validation harness (added 2026-08-06) ---------------
+# The control panel's answer was produced by compute_control_metrics.py, but the
+# specificity block ranks with scripts/compute_delta_minpae.py. Two implementations of
+# the same statistic is where a silent inconsistency lives, so the panel is reshaped
+# into the block's manifest schema and the BLOCK'S OWN script is run over it. These
+# tests pin the shape translation.
+
+import validate_specificity_block as vsb  # noqa: E402
+
+
+def _ctl_rec(protein, dna_id, on, pae_path, **kw):
+    rec = {"protein": protein, "dna_id": dna_id, "is_on_target": on, "oracle": "rf3",
+           "pae_path": pae_path, "protein_chains": ["A"], "dna_chains": ["B", "C"],
+           "protein_len": 90, "protein_copies": 1, "klass": "specific"}
+    rec.update(kw)
+    return rec
+
+
+def test_reshape_maps_is_on_target_to_kind(tmp_path):
+    p = tmp_path / "x.json"
+    p.write_text("{}")
+    jobs, _ = vsb.to_specificity_manifest([
+        _ctl_rec("Zif268", "zif268_site", True, str(p)),
+        _ctl_rec("Zif268", "ebox", False, str(p)),
+    ])
+    assert [j["kind"] for j in jobs] == ["on_target", "decoy"]
+    assert [j["design_id"] for j in jobs] == ["Zif268", "Zif268"]
+    assert jobs[0]["protein_chain"] == "A"
+
+
+def test_reshape_excludes_proteins_with_no_cognate_site(tmp_path):
+    """Sac7d/Ubiquitin/GFP have no on-target, so ΔminPAE has no reference point. They
+    must be excluded EXPLICITLY, not left to be dropped silently downstream."""
+    p = tmp_path / "x.json"
+    p.write_text("{}")
+    jobs, skipped = vsb.to_specificity_manifest([
+        _ctl_rec("Zif268", "zif268_site", True, str(p)),
+        _ctl_rec("Ubiquitin", "scramble", False, str(p), klass="nonbinder"),
+        _ctl_rec("GFP", "scramble", False, str(p), klass="nonbinder"),
+    ])
+    assert [j["design_id"] for j in jobs] == ["Zif268"]
+    assert {s[0] for s in skipped} == {"Ubiquitin", "GFP"}
+    assert all("no on-target" in s[2] for s in skipped)
+
+
+def test_reshape_reports_missing_pae_rather_than_emitting_a_dead_path(tmp_path):
+    jobs, skipped = vsb.to_specificity_manifest([
+        _ctl_rec("Zif268", "zif268_site", True, "/nonexistent/x.json"),
+        _ctl_rec("Engrailed", "hd_taatta", True, None),
+    ])
+    assert jobs == []
+    assert len(skipped) == 2
+    assert all("no PAE on disk" in s[2] for s in skipped)
+
+
+def test_reshape_filters_by_oracle(tmp_path):
+    p = tmp_path / "x.json"
+    p.write_text("{}")
+    recs = [_ctl_rec("Zif268", "zif268_site", True, str(p)),
+            _ctl_rec("Zif268", "ebox", False, str(p), oracle="protenix")]
+    jobs, _ = vsb.to_specificity_manifest(recs, oracle="rf3")
+    assert len(jobs) == 1
+    jobs, _ = vsb.to_specificity_manifest(recs, oracle="protenix")
+    assert len(jobs) == 1 and jobs[0]["dna_id"] == "ebox"
+
+
+def test_protein_len_stays_a_count_the_consumer_understands(tmp_path):
+    """The panel's dimers are 2 copies; the consumer multiplies count x copies itself."""
+    p = tmp_path / "x.json"
+    p.write_text("{}")
+    jobs, _ = vsb.to_specificity_manifest([
+        _ctl_rec("MAX_bHLH", "ebox", True, str(p), protein_len=83, protein_copies=2)])
+    from compute_delta_minpae import _protein_len_range
+    assert jobs[0]["protein_len"] == 83 and jobs[0]["protein_copies"] == 2
+    assert _protein_len_range(jobs[0]) == (0, 166)

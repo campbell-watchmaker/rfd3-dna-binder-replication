@@ -296,3 +296,160 @@ def test_an_unreadable_pae_fails_a_requested_gate_rather_than_passing_it(tmp_pat
     assert rows[0]["min_pae"] in ("", "None")
     assert "0 passers" in r.stdout
     assert "NO row had a readable PAE" in r.stdout
+
+
+# --- H-bond constraint SAMPLING (added 2026-08-06) --------------------------
+# The paper describes the constraint set as varied per design -- "we sample ... a
+# diverse set of hydrogen bond (Hbond) condition constraints" -- so one fixed subset is
+# the wrong SHAPE regardless of its size. Consistent with the measurement that 6 vs 8
+# atoms was indistinguishable over 100 refolds: the count was not the operative
+# variable. The DRAWING MECHANISM is ours; the paper states the diversity, not the how.
+
+def _cands():
+    """A 12-bp PRNP-like duplex: purine strand A, pyrimidine strand B.
+
+    Purines carry 2 major-groove atoms each (G N7+O6, A N7+N6), pyrimidines 1
+    (C N4, T O4) -- which is why base COUNT and atom COUNT differ per draw.
+    """
+    seq = "TGAGGAGAGGAG"
+    out = []
+    for i, b in enumerate(seq, start=1):
+        if b == "G":
+            out += [{"chain": "A", "res_id": i, "res_name": "DG", "atom": "N7",
+                     "role": "acceptor"},
+                    {"chain": "A", "res_id": i, "res_name": "DG", "atom": "O6",
+                     "role": "acceptor"}]
+        elif b == "A":
+            out += [{"chain": "A", "res_id": i, "res_name": "DA", "atom": "N7",
+                     "role": "acceptor"},
+                    {"chain": "A", "res_id": i, "res_name": "DA", "atom": "N6",
+                     "role": "donor"}]
+        else:
+            out += [{"chain": "A", "res_id": i, "res_name": "DT", "atom": "O4",
+                     "role": "acceptor"}]
+        comp = {"G": "DC", "A": "DT", "T": "DA", "C": "DG"}[b]
+        out.append({"chain": "B", "res_id": i, "res_name": comp,
+                    "atom": "N4" if comp == "DC" else "O4", "role": "acceptor"})
+    return out
+
+
+def test_sampling_is_reproducible_from_the_seed():
+    """Every draw is recorded per spec, so a design traces back to its exact set."""
+    import random
+    a, ra = mrs.sample_for_ori(_cands(), 1, 6, random.Random(7))
+    b, rb = mrs.sample_for_ori(_cands(), 1, 6, random.Random(7))
+    assert ra == rb
+    key = lambda cs: sorted(f"{c['chain']}{c['res_id']}{c['atom']}" for c in cs)  # noqa: E731
+    assert key(a) == key(b)
+
+
+def test_sampling_actually_varies_across_designs():
+    """The whole point: consecutive draws must not be the fixed subset repeated."""
+    import random
+    rng = random.Random(42)
+    draws = [mrs.sample_for_ori(_cands(), 1, 6, rng)[1] for _ in range(20)]
+    assert len({tuple(d["base_positions"]) for d in draws}) > 1, \
+        "every draw was identical -- sampling is not sampling"
+    assert len({d["n_bases_drawn"] for d in draws}) > 1, "the count never varied"
+
+
+def test_sampled_count_respects_the_requested_range():
+    import random
+    rng = random.Random(1)
+    for _ in range(40):
+        _, d = mrs.sample_for_ori(_cands(), 1, 6, rng, n_bases_range=(2, 3))
+        assert 2 <= d["n_bases_drawn"] <= 3, d
+
+
+def test_both_atoms_of_a_purine_are_always_kept_together():
+    """G N7+O6 and A N7+N6 are the bidentate pairs Arg/Asn form; splitting one off
+    specifies a weaker and less physical constraint."""
+    import random
+    rng = random.Random(3)
+    for _ in range(30):
+        kept, d = mrs.sample_for_ori(_cands(), 1, 12, rng, strand="purine")
+        by_res = {}
+        for c in kept:
+            by_res.setdefault(c["res_id"], set()).add(c["atom"])
+        for res, atoms in by_res.items():
+            if atoms & {"N7"}:
+                assert len(atoms) == 2, f"res {res} kept only {atoms}"
+
+
+def test_terminal_base_pairs_are_never_sampled():
+    """The predicted duplex frays at its ends, where contacts are least reliable."""
+    import random
+    rng = random.Random(5)
+    for _ in range(40):
+        _, d = mrs.sample_for_ori(_cands(), 1, 12, rng)
+        assert 1 not in d["base_positions"] and 12 not in d["base_positions"], d
+
+
+def test_sampling_stays_inside_its_own_ori_window():
+    import random
+    rng = random.Random(11)
+    for _ in range(30):
+        _, d = mrs.sample_for_ori(_cands(), 7, 12, rng)
+        assert all(7 <= p <= 11 for p in d["base_positions"]), d
+
+
+def test_either_strand_picks_one_strand_per_design_not_both():
+    """Conditioning both strands doubly constrains the same base pairs."""
+    import random
+    rng = random.Random(2)
+    strands = set()
+    for _ in range(30):
+        _, d = mrs.sample_for_ori(_cands(), 1, 12, rng, strand="either")
+        assert len(d["strands"]) == 1, d
+        strands |= set(d["strands"])
+    assert strands == {"A", "B"}, f"only ever drew {strands}"
+
+
+def test_fixed_mode_is_unchanged_and_remains_the_default():
+    """Existing arms must stay reproducible."""
+    import subprocess
+    r = subprocess.run([sys.executable,
+                        os.path.join(os.path.dirname(__file__), "..", "scripts",
+                                     "make_rfd3na_specs.py"), "--help"],
+                       capture_output=True, text=True)
+    assert "fixed (default)" in r.stdout
+    kept = mrs.subset_for_ori(_cands(), 1, 6, 3, "purine")
+    assert {c["res_id"] for c in kept} == {3, 4, 5}
+
+
+def test_designs_per_ori_is_refused_without_sampling(tmp_path):
+    """Without sampling the subset is deterministic, so N specs would be N copies."""
+    import subprocess
+    r = subprocess.run([sys.executable,
+                        os.path.join(os.path.dirname(__file__), "..", "scripts",
+                                     "make_rfd3na_specs.py"),
+                        "--conditioning", os.path.join(os.path.dirname(__file__), "..",
+                                                       "targets", "prnp",
+                                                       "conditioning.json"),
+                        "--duplex-cif", "/workspace/d.cif",
+                        "--out-dir", str(tmp_path / "o"), "--designs-per-ori", "5"],
+                       capture_output=True, text=True)
+    assert r.returncode != 0
+    assert "only makes sense with --hbond-sampling random" in r.stderr
+
+
+def test_manifest_records_the_draw_for_every_spec(tmp_path):
+    import subprocess
+    out = tmp_path / "specs"
+    r = subprocess.run([sys.executable,
+                        os.path.join(os.path.dirname(__file__), "..", "scripts",
+                                     "make_rfd3na_specs.py"),
+                        "--conditioning", os.path.join(os.path.dirname(__file__), "..",
+                                                       "targets", "prnp",
+                                                       "conditioning.json"),
+                        "--duplex-cif", "/workspace/d.cif", "--out-dir", str(out),
+                        "--hbond-sampling", "random", "--designs-per-ori", "4",
+                        "--seed", "99"], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    man = json.load(open(out / "manifest.json"))
+    assert man["hbond_sampling"] == "random" and man["hbond_seed"] == 99
+    assert len(man["specs"]) == 8, "2 ori x 4 draws"
+    for s in man["specs"]:
+        d = s["hbond_draw"]
+        assert d["mode"] == "random" and d["atoms"] and d["n_atoms"] == len(d["atoms"])
+        assert os.path.isfile(out / s["spec"])

@@ -51,9 +51,30 @@ python scripts/make_rfd3na_specs.py \
     --out-dir      specs/binder_block/rfd3na_specs
 ```
 
-> **H-bond conditioning is subset automatically** by `--hbond-strand` /
-> `--hbond-central-bases` (default: purine strand, central 3 bases per ori = 6 of
-> 36 atoms for PRNP). HBPLUS must be installed GPU-side for conditioning to work.
+> **H-bond conditioning: sample it, do not fix it.** For a real campaign use
+>
+> ```bash
+> --hbond-sampling random --hbond-strand either --designs-per-ori 5100 --seed 42
+> ```
+>
+> which emits one spec per design with an independently drawn constraint set: base
+> count uniform over `--hbond-bases-min/max` (default 2–5, spanning 4–10 atoms of
+> PRNP's 36), positions uniform without replacement inside that ori's window, strand
+> drawn per design. Every draw is recorded in `manifest.json` under `hbond_draw`, so
+> any design traces back to the exact set that produced it.
+>
+> This is the shape the paper describes — *"we sample a variety of placements of the
+> protein center of mass … and **a diverse set of hydrogen bond (Hbond) condition
+> constraints**"*. **The drawing mechanism is ours**; the paper states the diversity,
+> not the method. Both atoms of a purine are always kept together (G N7+O6, A N7+N6 are
+> the bidentate pairs Arg and Asn form), and terminal base pairs are excluded.
+>
+> `--hbond-sampling fixed` (the default, purine strand + central 3 bases = 6 of 36
+> atoms) is retained so existing arms stay reproducible. It is **not** the paper's
+> shape. Consistent with the measurement that 6 vs 8 atoms was indistinguishable over
+> 100 refolds — the count was not the operative variable, so no fixed count is the fix.
+>
+> HBPLUS must be installed GPU-side for conditioning to work.
 >
 > **Provenance, corrected 2026-08-05.** This note used to say "the paper conditions
 > on a selected subset, e.g. the N7/O6 of the central G/A run". **That is not in the

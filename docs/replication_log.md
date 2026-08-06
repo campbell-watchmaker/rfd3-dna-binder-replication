@@ -411,3 +411,39 @@ aligned on the wrong strand.
   the zero-nucleotide and residue-count gates that the crystal-template attempt paid for.
 
 Tests: 53 → 79.
+
+
+## Phase 2 (partial) — H-bond conditioning is now sampled (2026-08-06)
+
+`make_rfd3na_specs.py --hbond-sampling random` draws an independent constraint set per
+design instead of reusing one fixed subset per ori. This closes the shape mismatch the
+2026-08-05 provenance correction identified: the paper varies the constraint set across
+designs, so a single fixed subset was wrong regardless of its size — which is also why
+the 6-vs-8-atom comparison came out indistinguishable over 100 refolds. No fixed count
+is the fix.
+
+**What is sampled, and what is ours.** The paper states the diversity and not the
+method, so the mechanism is our construction and is labelled as such in the code:
+
+- base-position count, uniform over `--hbond-bases-min/max` (default 2–5, spanning 4–10
+  atoms against PRNP's 36 candidates — which straddles foundry's ~one-third training
+  subsample rate, an implementation signal, not paper evidence);
+- which positions, uniform without replacement inside that ori's own bp window;
+- which strand, drawn per design under `--hbond-strand either` (previously purine-only;
+  foundry's shipped 14-bp example uses both strands).
+
+Two invariants are preserved from the fixed rule and tested: both atoms of a purine are
+always kept together (G N7+O6, A N7+N6 are the bidentate pairs Arg and Asn form against
+a purine, so splitting them specifies a weaker and less physical constraint), and the
+duplex's terminal base pairs are never drawn.
+
+Every draw is recorded per spec in `manifest.json` under `hbond_draw`, and the manifest
+carries the seed, so a design traces back to the exact constraint set that produced it.
+`--designs-per-ori > 1` without sampling is refused rather than silently emitting N
+identical specs. `fixed` remains the default so the existing arms stay reproducible.
+
+Also from Phase 2: the specificity entry gate recalibration (minPAE < 6.6) and minPAE
+emission from the binder block landed with Phase 1 above, because Stage 0 was
+unexecutable without them.
+
+Tests: 79 → 94.
