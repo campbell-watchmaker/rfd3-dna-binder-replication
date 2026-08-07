@@ -62,14 +62,22 @@ def main() -> int:
 
     from pecli.config import load
     from pecli.aws import runs as pruns, s3
+    from pecli.runner import slugify_group
 
     cfg = load().resolved()
+    # pecli slugifies a --group label at SUBMIT time (runner.slugify_group), so the
+    # stored value is e.g. "p25-fixed-cfgon" for a label typed "p25-fixed_cfgon". The
+    # CLI slugifies the query too, so `pecli runs --group` matches either way; querying
+    # the index directly does not, and returns a confident, wrong 0 runs.
+    group = slugify_group(args.group)
+    if group != args.group:
+        print(f"group {args.group!r} slugified to {group!r} (pecli normalises at submit)")
     try:
-        found = pruns.list_by_group(args.group, limit=args.limit, cfg=cfg)
+        found = pruns.list_by_group(group, limit=args.limit, cfg=cfg)
     except Exception:
         # the sparse group index may not be deployed; the scan fallback is equivalent
-        found = pruns.list_all_by_group(args.group, limit=args.limit, cfg=cfg)
-    print(f"group {args.group}: {len(found)} run(s)")
+        found = pruns.list_all_by_group(group, limit=args.limit, cfg=cfg)
+    print(f"group {group}: {len(found)} run(s)")
     if not found:
         return 1
 
