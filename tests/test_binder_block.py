@@ -453,3 +453,80 @@ def test_manifest_records_the_draw_for_every_spec(tmp_path):
         d = s["hbond_draw"]
         assert d["mode"] == "random" and d["atoms"] and d["n_atoms"] == len(d["atoms"])
         assert os.path.isfile(out / s["spec"])
+
+
+# --- sampler config -> pecli flags (added 2026-08-06) ----------------------
+# PIPELINE.md showed `pecli prepare rfd3na --design-inputs SPEC --config CFG:_smoke_test`.
+# NEITHER flag exists; pecli rejects both with "unknown option(s) for rfd3na: config,
+# design_inputs". The spec goes in via --input and every sampler knob is its own flag.
+# The command as documented could never have run.
+#
+# It also surfaced that `cfg_features` -- carried in sampler_config.json with a
+# paragraph of rationale -- is not a field pecli exposes, so it has never reached the
+# sampler on any run. A silently-inert setting is the failure mode these tests pin.
+
+import submit_arm_diffusion as sad  # noqa: E402
+
+
+def test_config_becomes_one_flag_per_field():
+    flags, skipped = sad.config_to_flags({"diffusion_batch_size": 5, "n_batches": 2,
+                                          "step_scale": 1.5, "gamma_0": 0.6})
+    assert flags == ["--diffusion-batch-size", "5", "--n-batches", "2",
+                     "--step-scale", "1.5", "--gamma-0", "0.6"]
+    assert skipped == []
+
+
+def test_bools_are_passed_with_an_explicit_value():
+    """A BARE bool flag means True in pecli's parser, so `false` is only expressible by
+    passing the value -- emitting a bare flag for cfg=False would silently turn CFG ON,
+    which is precisely the arm being measured."""
+    on, _ = sad.config_to_flags({"use_classifier_free_guidance": True})
+    off, _ = sad.config_to_flags({"use_classifier_free_guidance": False})
+    assert on == ["--use-classifier-free-guidance", "true"]
+    assert off == ["--use-classifier-free-guidance", "false"]
+
+
+def test_cfg_features_is_reported_as_unsupported_not_passed():
+    """It is in sampler_config.json, it is not a pecli field, and passing it makes
+    prepare fail outright."""
+    flags, skipped = sad.config_to_flags(
+        {"cfg_scale": 1.5, "cfg_features": ["active_donor", "active_acceptor"]})
+    assert flags == ["--cfg-scale", "1.5"]
+    assert skipped == ["cfg_features"]
+
+
+def test_comment_keys_are_ignored_silently_but_unknown_keys_are_not():
+    """Underscore keys are documentation. Anything else unknown is a real setting that
+    will not take effect, and must be surfaced."""
+    flags, skipped = sad.config_to_flags(
+        {"_comment": "x", "_cfg_note": "y", "made_up_knob": 3, "n_batches": 1})
+    assert flags == ["--n-batches", "1"]
+    assert skipped == ["made_up_knob"]
+
+
+def test_the_committed_sampler_config_translates_cleanly():
+    """The real file, so a future edit that adds an inert knob fails here."""
+    cfg = json.load(open(os.path.join(os.path.dirname(__file__), "..", "specs",
+                                      "binder_block", "sampler_config.json")))
+    for arm in ("_smoke_test", "_full_run"):
+        flags, skipped = sad.config_to_flags(cfg[arm])
+        assert "--diffusion-batch-size" in flags and "--n-batches" in flags
+        assert "--use-classifier-free-guidance" in flags
+        assert skipped == ["cfg_features"], (
+            f"{arm}: unexpected inert setting(s) {skipped} -- either pecli gained the "
+            "field or a knob was added that will silently do nothing")
+
+
+def test_every_known_field_matches_peclis_rfd3na_tool_spec():
+    """KNOWN_FIELDS is a local copy of pecli's field list; if the tool gains or loses a
+    knob this drifts silently. Skips when pecli is not importable (CI without it)."""
+    pytest_mod = __import__("pytest")
+    try:
+        from pecli.tools import rfd3na  # noqa: F401
+        from pecli.tools.base import SPECS  # type: ignore
+    except Exception:
+        pytest_mod.skip("pecli not importable from this interpreter")
+    spec = SPECS["rfd3na"]
+    real = {f.key for f in spec.fields} | {"gpu"}
+    unknown_to_pecli = sad.KNOWN_FIELDS - real
+    assert not unknown_to_pecli, f"we pass fields pecli does not have: {unknown_to_pecli}"

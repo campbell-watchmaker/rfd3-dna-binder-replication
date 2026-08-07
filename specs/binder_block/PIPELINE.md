@@ -99,13 +99,34 @@ python scripts/make_rfd3na_specs.py \
 ## Stage 3 — diffuse binders (GPU, pecli, per ori spec)
 
 ```bash
-for spec in specs/binder_block/rfd3na_specs/prnp_binder_ori*.json; do
-    pecli prepare rfd3na --design-inputs "$spec" \
-        --config specs/binder_block/sampler_config.json:_smoke_test
-    pecli submit <run>
-done
+python scripts/submit_arm_diffusion.py \
+    --spec-dir specs/binder_block/rfd3na_specs \
+    --config   specs/binder_block/sampler_config.json \
+    --duplex-cif targets/prnp/prnp_duplex.cif \
+    --group prnp-binder --designs-per-run 10 --max-spend 5.00 --dry-run
+# review, then drop --dry-run
 # → per-design <id>.cif (+ <id>.pdb for protein-containing designs) + <id>.json
 ```
+
+> **Corrected 2026-08-06.** This used to show
+> `pecli prepare rfd3na --design-inputs "$spec" --config sampler_config.json:_smoke_test`.
+> **Neither flag exists** — `pecli prepare` rejects both with
+> `unknown option(s) for rfd3na: config, design_inputs`. The spec goes in via `--input`,
+> and every sampler knob is its own flag (`--diffusion-batch-size`, `--n-batches`,
+> `--use-classifier-free-guidance`, …). The command as written could never have run.
+>
+> It also omitted the **target-CIF staging step**, without which a run starts and dies
+> immediately: the spec references its duplex by container path (`/workspace/…cif`) and
+> `pecli prepare` stages only `config.json` plus the spec. `submit_arm_diffusion.py`
+> drives prepare → stage → submit as one sequence so the staging cannot be skipped (it
+> has been, twice), translates the config JSON into flags, and enforces a spend cap
+> per run rather than only up front.
+>
+> **`cfg_features` is not a real setting.** `sampler_config.json` carries
+> `cfg_features: [active_donor, active_acceptor]` with a paragraph of rationale, but
+> pecli's rfd3na tool exposes no such field (`pecli/tools/rfd3na.py`), so it has never
+> reached the sampler on any run this project has made. The submitter now reports it as
+> skipped rather than passing it and being rejected.
 
 Note the connector chains only the **first** design rfd3na → ligandmpnn; for
 sequence design across *all* backbones, run ligandmpnn per design PDB (Stage 5).
