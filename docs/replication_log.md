@@ -668,3 +668,34 @@ DNA-aligned RMSD ~31 Å against a median protein-only RMSD of ~6.4 Å. As the sm
 found, the designs fold roughly as intended but are not placed on the duplex; neither
 factor tested here moved that. Per the plan's own risk note, the remaining suspects are
 ori-token placement and the relax's DNA restraint rather than the H-bond conditioning.
+
+### Correction — `cfg_features` was never absent, only never ours (2026-08-07)
+
+The Phase-2.5 note above says `cfg_features` "has never reached the sampler on any run".
+That is right about *our value* and **wrong about the effect**, and the difference
+matters. Read from foundry source (`models/rfd3na/`):
+
+- pecli's rfd3na tool exposes no `cfg_features` field, and `containers/rfd3na/pipeline.py`
+  overrides only `use_classifier_free_guidance` and `cfg_scale`. So our list is inert.
+- But the field then falls back to foundry's own default in
+  `configs/inference_engine/rfdiffusion3.yaml`:
+  **`[active_donor, active_acceptor, ref_atomwise_rasa, bp_partners]`**
+  (the checkpoint sampler config `configs/model/samplers/edm.yaml` carries the first
+  three).
+
+So **both H-bond features we wanted guided ARE guided**. What we additionally get,
+unasked, is guidance on `ref_atomwise_rasa` (per-atom relative solvent accessibility) and
+`bp_partners` (base-pair partners). Setting our two-item list is a no-op; *narrowing* to
+only the H-bond features would need a pecli change.
+
+**What CFG actually does here** (`model/inference_sampler.py:273-305`, `model/cfg_utils.py`):
+at each diffusion step the model is run twice — once with the conditioning features, once
+with the `cfg_features` entries **zeroed** (`strip_f`) — and the two update directions are
+combined as
+
+    delta = delta_cond + (cfg_scale - 1) * (delta_cond - delta_uncond)
+
+i.e. it extrapolates *away* from what the model would have done knowing nothing about the
+H-bond constraints. `cfg_scale = 1.0` is a no-op; our 1.5 pushes 50% past the conditional
+prediction. `cfg_t_max` is null, so it applies at every timestep. **Cost: two forward
+passes per step instead of one** whenever CFG is on.
