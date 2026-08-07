@@ -39,13 +39,24 @@ import os
 import re
 import sys
 
-DESC_RE = re.compile(r"oracle-controls(?:\s+TEMPLATED)?\s+(\S+)\s+\(")
+# Two description conventions are in use, and BOTH must be recognised or the download
+# lands in a directory named by run id -- which downloads fine and then fails every
+# downstream glob that expects <fold_id>/, with a misleading "no refold CIF" error.
+#   control panel:  "oracle-controls [TEMPLATED] <fold_id> (rf3, MSA-free)"
+#   arm drivers:    "phase2.5 <group> refold :: <fold_id>"
+DESC_RES = (
+    re.compile(r"::\s*(\S+)\s*$"),                          # "… :: <fold_id>"
+    re.compile(r"oracle-controls(?:\s+TEMPLATED)?\s+(\S+)\s+\("),
+)
 
 
 def fold_id_from_description(desc, fallback):
     """Our submitters embed the fold_id in the run description; fall back to short_id."""
-    m = DESC_RE.search(desc or "")
-    return m.group(1) if m else fallback
+    for rx in DESC_RES:
+        m = rx.search(desc or "")
+        if m:
+            return m.group(1)
+    return fallback
 
 
 def main() -> int:
