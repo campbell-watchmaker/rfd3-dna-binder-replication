@@ -566,3 +566,55 @@ The 64th fold, **Zif268's on-target**, is not in the rf3 group at all: it was su
 earlier as the schema probe, under `oracle-controls-probe`. Nothing was wrong with it —
 but note the panel's most load-bearing single fold sits outside the group its 63 siblings
 share, which is worth knowing before anyone treats the group as the panel.
+
+
+## Phase 2.5 — the A/B arms (2026-08-06)
+
+**Design: a 2×2 factorial, not two separate A/B pairs.** CFG (on/off) × H-bond
+conditioning (fixed/sampled), 20 designs per arm, 80 total. Same cost as the planned two
+pairs (~$0.96 diffusion + ~$1.60 refold), but each main effect is measured at n=40 per
+level instead of n=20. Both factors are crossed, so an interaction is at least visible
+rather than aliased.
+
+Arm structure differs by necessity: the fixed arms are 2 specs (one per ori) × batch 5 ×
+2 batches; the sampled arms are 10 specs (5 independent draws × 2 ori) × batch 2, because
+a sampled arm needs a *different constraint set per spec* — that is the thing being
+tested. Seed 2025, and every draw is recorded in each arm's `manifest.json`.
+
+All 24 diffusion runs SUCCEEDED, ~$0.96.
+
+**Caveat carried from `compare_conditioning_arms.py`, and it still applies:** rfd3na
+exposes no seed control, so the arms are independent draws rather than paired. n=20 per
+arm resolves only large effects. A shifted median with overlapping ranges is noise.
+
+### Two documentation bugs found by trying to run the documented command
+
+`specs/binder_block/PIPELINE.md` Stage 3 showed
+
+    pecli prepare rfd3na --design-inputs "$spec" --config sampler_config.json:_smoke_test
+
+**Neither flag exists.** pecli answers `unknown option(s) for rfd3na: config,
+design_inputs`. The spec goes in via `--input`, and every sampler knob is its own flag.
+The command as documented could never have run. It also omitted the target-CIF staging
+step, without which a run starts and dies immediately on a CIF that was never uploaded.
+`scripts/submit_arm_diffusion.py` now drives prepare → stage → submit as one sequence.
+
+### `cfg_features` has never been applied
+
+`sampler_config.json` carries `cfg_features: [active_donor, active_acceptor]` with a
+paragraph of rationale. **pecli's rfd3na tool exposes no such field**
+(`pecli/tools/rfd3na.py`), and `pecli prepare` rejects unknown options — so the setting
+has never reached the sampler on any run this project has made, including the 20 designs
+of the original smoke test. `use_classifier_free_guidance` and `cfg_scale` are real and
+do apply, so the CFG arms are still a valid comparison; what was never true is the claim
+that we guide on those two features specifically. Annotated in the config rather than
+deleted, and the submitter reports it as skipped. A test now translates the committed
+config so any future inert knob fails CI.
+
+### A second pecli group-label trap
+
+pecli slugifies a `--group` label at submit time, so `p25-fixed_cfgon` is stored as
+`p25-fixed-cfgon`. The CLI slugifies the query too, so `pecli runs --group` matches
+either spelling — but querying the group index directly does not, and returns a
+confident, wrong `0 run(s)`. `fetch_group_results.py` now slugifies first. Related to,
+but distinct from, the resolver bug fixed in pecli PR #191.
