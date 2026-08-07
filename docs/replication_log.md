@@ -618,3 +618,53 @@ pecli slugifies a `--group` label at submit time, so `p25-fixed_cfgon` is stored
 either spelling — but querying the group index directly does not, and returns a
 confident, wrong `0 run(s)`. `fetch_group_results.py` now slugifies first. Related to,
 but distinct from, the resolver bug fixed in pecli PR #191.
+
+### Phase 2.5 results (2026-08-06)
+
+80 designs, 4 cells of 20, all stages clean: diffusion 24/24, relax 80/80, LigandMPNN
+80/80, rf3 refold 80/80. Spend ~$2.56 (diffusion $0.96, refold $1.60; relax and
+LigandMPNN free). Per-arm CSVs in `results/phase25/`, and the sampled arms' exact
+constraint draws in `results/phase25/sampled_hbond_draws.json`.
+
+**Main effect: CFG** (n=40 per level)
+
+| metric | CFG on (min/med/max) | CFG off (min/med/max) |
+|---|---|---|
+| protein-only Cα-RMSD | 1.89 / **6.99** / 19.92 | 2.29 / **6.10** / 20.34 |
+| DNA-aligned Cα-RMSD | 16.31 / **32.04** / 73.95 | 10.45 / **30.91** / 41.02 |
+| major-groove H-bonds | 0 / **2** / 11 | 0 / **2** / 9 |
+| ipTM | 0.26 / **0.54** / 0.72 | 0.28 / **0.52** / 0.76 |
+| passes 8 Å gate | 0/40 | 0/40 |
+| folds correctly (<3 Å protein-only) | 5/40 | 6/40 |
+| reads bases (≥3 major-groove H-b) | 15/40 | 16/40 |
+
+**Main effect: H-bond conditioning** (n=40 per level)
+
+| metric | fixed (min/med/max) | sampled (min/med/max) |
+|---|---|---|
+| protein-only Cα-RMSD | 2.44 / **6.91** / 19.92 | 1.89 / **6.38** / 20.34 |
+| DNA-aligned Cα-RMSD | 12.26 / **32.14** / 73.95 | 10.45 / **31.75** / 52.81 |
+| major-groove H-bonds | 0 / **2** / 9 | 0 / **2** / 11 |
+| ipTM | 0.28 / **0.51** / 0.76 | 0.26 / **0.54** / 0.72 |
+| passes 8 Å gate | 0/40 | 0/40 |
+| folds correctly | 6/40 | 5/40 |
+| reads bases | 15/40 | 16/40 |
+
+**Four cells** (n=20): passes-8 Å 0/0/0/0; folds-correctly 2/4/3/2; reads-bases 8/7/7/9;
+median DNA-aligned RMSD 32.47 / 31.80 / 32.04 / 30.17.
+
+Every median difference sits well inside the overlapping ranges, and n=20 per cell with
+unpaired arms (rfd3na exposes no seed control) resolves only large effects. The
+comparison script prints that caveat with every table.
+
+**The fixed/CFG-on cell is the smoke test's own configuration**, and it reproduces the
+smoke test closely — median DNA-aligned RMSD 32.47 Å vs ~30 Å, median major-groove
+H-bonds 2 vs 2. That is a consistency check on the rebuilt pipeline: the Stage-6 emitter
+was rewritten, the manifest schema changed, and minPAE was added since those numbers
+were taken.
+
+**0/80 designs clear the paper's 8 Å pre-resample gate**, in every cell. Median
+DNA-aligned RMSD ~31 Å against a median protein-only RMSD of ~6.4 Å. As the smoke test
+found, the designs fold roughly as intended but are not placed on the duplex; neither
+factor tested here moved that. Per the plan's own risk note, the remaining suspects are
+ori-token placement and the relax's DNA restraint rather than the H-bond conditioning.
