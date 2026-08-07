@@ -99,6 +99,10 @@ def stage_mpnn(a, W):
             print(f"  ! {name}: submit: {o2.strip()[-200:]}")
             continue
         submitted.append({"backbone": name, "run_id": m.group(1)})
+        # Written after EVERY submission, not once at the end: the record of what has
+        # already been paid for must survive an interruption, or a re-run resubmits
+        # everything it cannot remember.
+        _save(W, "mpnn_runs.json", submitted)
     _save(W, "mpnn_runs.json", submitted)
     print(f"mpnn: {len(submitted)} run(s) submitted (LigandMPNN measured at $0.00)")
     return bool(submitted)
