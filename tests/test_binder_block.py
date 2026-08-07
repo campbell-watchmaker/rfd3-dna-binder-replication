@@ -10,6 +10,7 @@ import os
 import sys
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import make_rfd3na_specs as mrs
@@ -306,103 +307,178 @@ def test_an_unreadable_pae_fails_a_requested_gate_rather_than_passing_it(tmp_pat
 # variable. The DRAWING MECHANISM is ours; the paper states the diversity, not the how.
 
 def _cands():
-    """A 12-bp PRNP-like duplex: purine strand A, pyrimidine strand B.
+    """A 12-bp PRNP-like duplex, numbered the way the REAL conditioning bundle is.
+
+    Both strands run 1..12 in their own 5'->3' numbering, and the duplex is ANTIPARALLEL,
+    so B_j is the complement of A_(13-j) -- NOT of A_j. Getting this wrong in the fixture
+    would hide exactly the defect these tests exist to catch.
 
     Purines carry 2 major-groove atoms each (G N7+O6, A N7+N6), pyrimidines 1
-    (C N4, T O4) -- which is why base COUNT and atom COUNT differ per draw.
+    (C N4, T O4), which is why base COUNT and atom COUNT differ per draw.
     """
     seq = "TGAGGAGAGGAG"
+    comp = {"G": "C", "A": "T", "T": "A", "C": "G"}
+    anti = "".join(comp[b] for b in reversed(seq))      # CTCCTCTCCTCA
     out = []
-    for i, b in enumerate(seq, start=1):
-        if b == "G":
-            out += [{"chain": "A", "res_id": i, "res_name": "DG", "atom": "N7",
+
+    def atoms(chain, res_id, base):
+        d = "D" + base
+        if base == "G":
+            return [{"chain": chain, "res_id": res_id, "res_name": d, "atom": "N7",
                      "role": "acceptor"},
-                    {"chain": "A", "res_id": i, "res_name": "DG", "atom": "O6",
+                    {"chain": chain, "res_id": res_id, "res_name": d, "atom": "O6",
                      "role": "acceptor"}]
-        elif b == "A":
-            out += [{"chain": "A", "res_id": i, "res_name": "DA", "atom": "N7",
+        if base == "A":
+            return [{"chain": chain, "res_id": res_id, "res_name": d, "atom": "N7",
                      "role": "acceptor"},
-                    {"chain": "A", "res_id": i, "res_name": "DA", "atom": "N6",
+                    {"chain": chain, "res_id": res_id, "res_name": d, "atom": "N6",
                      "role": "donor"}]
-        else:
-            out += [{"chain": "A", "res_id": i, "res_name": "DT", "atom": "O4",
-                     "role": "acceptor"}]
-        comp = {"G": "DC", "A": "DT", "T": "DA", "C": "DG"}[b]
-        out.append({"chain": "B", "res_id": i, "res_name": comp,
-                    "atom": "N4" if comp == "DC" else "O4", "role": "acceptor"})
+        return [{"chain": chain, "res_id": res_id, "res_name": d,
+                 "atom": "N4" if base == "C" else "O4",
+                 "role": "donor" if base == "C" else "acceptor"}]
+
+    for i, b in enumerate(seq, start=1):
+        out += atoms("A", i, b)
+    for j, b in enumerate(anti, start=1):
+        out += atoms("B", j, b)
     return out
 
 
-def test_sampling_is_reproducible_from_the_seed():
-    """Every draw is recorded per spec, so a design traces back to its exact set."""
+def test_the_fixture_really_is_antiparallel():
+    """Guards the guard: if the fixture were numbered in parallel, every pairing test
+    below would pass vacuously."""
+    by = {(c["chain"], c["res_id"]): c["res_name"] for c in _cands()}
+    assert by[("A", 1)] == "DT" and by[("B", 12)] == "DA"
+    assert by[("A", 12)] == "DG" and by[("B", 1)] == "DC"
+
+
+def test_antiparallel_pairing_is_verified_not_assumed():
+    """B_j pairs with A_(L+1-j). This is CHECKED against Watson-Crick complementarity,
+    so a target whose strands are not a reverse-complement pair fails loudly instead of
+    yielding a plausible, wrong window."""
+    bp = mrs.bp_index_map(_cands())
+    assert bp[("A", 1)] == 1 and bp[("A", 12)] == 12
+    assert bp[("B", 1)] == 12, "B1 must pair with A12, not A1"
+    assert bp[("B", 12)] == 1
+    assert bp[("B", 5)] == 8
+
+
+def test_pairing_check_rejects_a_non_complementary_duplex():
+    bad = [{"chain": "A", "res_id": 1, "res_name": "DG", "atom": "N7", "role": "acceptor"},
+           {"chain": "A", "res_id": 2, "res_name": "DG", "atom": "N7", "role": "acceptor"},
+           # B1 should complement A2 (=DC); make it DA so the check must fire
+           {"chain": "B", "res_id": 1, "res_name": "DA", "atom": "N7", "role": "acceptor"},
+           {"chain": "B", "res_id": 2, "res_name": "DC", "atom": "N4", "role": "donor"}]
+    with pytest.raises(ValueError, match="pairing check FAILED"):
+        mrs.bp_index_map(bad)
+
+
+def test_antisense_draws_land_in_their_own_ori_window(tmp_path):
+    """THE BUG, pinned. Both strands are numbered 1..L independently and the duplex is
+    antiparallel, so comparing a chain-B res_id against a sense-strand window selects the
+    OPPOSITE END of the target. It was dormant while conditioning was purine-only and went
+    live with --hbond-strand either: 3 of 10 Phase-2.5 sampled specs drew strand B and got
+    constraints in the other ori's half."""
     import random
-    a, ra = mrs.sample_for_ori(_cands(), 1, 6, random.Random(7))
-    b, rb = mrs.sample_for_ori(_cands(), 1, 6, random.Random(7))
-    assert ra == rb
-    key = lambda cs: sorted(f"{c['chain']}{c['res_id']}{c['atom']}" for c in cs)  # noqa: E731
-    assert key(a) == key(b)
+    rng = random.Random(0)
+    saw_b = False
+    for _ in range(200):
+        kept, d = mrs.sample_for_ori(_cands(), 7, 12, rng, (2, 5), "either")
+        if not d["base_positions"]:
+            continue
+        assert all(7 <= p <= 12 for p in d["base_positions"]), d
+        # and the ATOMS actually kept must sit at those base pairs
+        assert all(7 <= p <= 12 for p in d["atom_bp_positions"]), d
+        saw_b |= d["strands"] == ["B"]
+    assert saw_b, "never drew the antisense strand, so the regression is untested"
 
 
-def test_sampling_actually_varies_across_designs():
-    """The whole point: consecutive draws must not be the fixed subset repeated."""
-    import random
-    rng = random.Random(42)
-    draws = [mrs.sample_for_ori(_cands(), 1, 6, rng)[1] for _ in range(20)]
-    assert len({tuple(d["base_positions"]) for d in draws}) > 1, \
-        "every draw was identical -- sampling is not sampling"
-    assert len({d["n_bases_drawn"] for d in draws}) > 1, "the count never varied"
-
-
-def test_sampled_count_respects_the_requested_range():
-    import random
-    rng = random.Random(1)
-    for _ in range(40):
-        _, d = mrs.sample_for_ori(_cands(), 1, 6, rng, n_bases_range=(2, 3))
-        assert 2 <= d["n_bases_drawn"] <= 3, d
-
-
-def test_both_atoms_of_a_purine_are_always_kept_together():
-    """G N7+O6 and A N7+N6 are the bidentate pairs Arg/Asn form; splitting one off
-    specifies a weaker and less physical constraint."""
+def test_draws_are_contiguous_base_pair_runs():
+    """A recognition helix reads a consecutive stretch; a scattered set may demand a
+    geometry no single fold satisfies."""
     import random
     rng = random.Random(3)
-    for _ in range(30):
-        kept, d = mrs.sample_for_ori(_cands(), 1, 12, rng, strand="purine")
+    for _ in range(200):
+        _, d = mrs.sample_for_ori(_cands(), 1, 6, rng, (2, 5), "either")
+        pos = d["base_positions"]
+        if len(pos) > 1:
+            assert pos == list(range(min(pos), max(pos) + 1)), f"not contiguous: {pos}"
+        assert d["pattern"] == "contiguous"
+
+
+def test_a_run_never_jumps_a_gap_in_usable_positions():
+    """`usable` has gaps where a base contributes no major-groove atom. Slicing the list
+    would emit a 'run' that silently jumps one."""
+    import random
+    # a strand where bp 3 is absent from the candidate pool entirely
+    cands = [c for c in _cands() if not (c["chain"] == "A" and c["res_id"] == 3)]
+    rng = random.Random(11)
+    for _ in range(200):
+        _, d = mrs.sample_for_ori(cands, 1, 6, rng, (2, 5), "purine")
+        pos = d["base_positions"]
+        if len(pos) > 1:
+            assert pos == list(range(min(pos), max(pos) + 1)), pos
+            assert 3 not in pos
+
+
+def test_both_strands_are_eligible_and_neither_dominates():
+    """[PAPER] 'candidate major groove donor and acceptor atoms' -- no strand restriction.
+    The old purine-only rule was ours."""
+    import random
+    rng = random.Random(5)
+    strands = set()
+    for _ in range(60):
+        _, d = mrs.sample_for_ori(_cands(), 1, 12, rng, (2, 5), "either")
+        strands |= set(d["strands"])
+    assert strands == {"A", "B"}, strands
+
+
+def test_terminal_base_pairs_are_never_drawn():
+    import random
+    rng = random.Random(5)
+    for _ in range(200):
+        _, d = mrs.sample_for_ori(_cands(), 1, 12, rng, (2, 5), "either")
+        assert 1 not in d["base_positions"] and 12 not in d["base_positions"], d
+
+
+def test_run_length_is_capped_by_the_window_not_the_request():
+    """A 6-bp ori window minus a terminal base pair leaves 5 usable, so a request for up
+    to 8 must silently cap at 5 rather than overflow the window."""
+    import random
+    rng = random.Random(9)
+    for _ in range(200):
+        _, d = mrs.sample_for_ori(_cands(), 1, 6, rng, (2, 8), "either")
+        assert d["n_bases_drawn"] <= 5, d
+        assert all(1 <= p <= 6 for p in d["base_positions"]), d
+
+
+def test_both_atoms_of_a_purine_stay_together():
+    import random
+    rng = random.Random(3)
+    for _ in range(60):
+        kept, _ = mrs.sample_for_ori(_cands(), 1, 12, rng, (2, 5), "purine")
         by_res = {}
         for c in kept:
             by_res.setdefault(c["res_id"], set()).add(c["atom"])
         for res, atoms in by_res.items():
-            if atoms & {"N7"}:
+            if "N7" in atoms:
                 assert len(atoms) == 2, f"res {res} kept only {atoms}"
 
 
-def test_terminal_base_pairs_are_never_sampled():
-    """The predicted duplex frays at its ends, where contacts are least reliable."""
+def test_sampling_is_reproducible_from_the_seed():
     import random
-    rng = random.Random(5)
-    for _ in range(40):
-        _, d = mrs.sample_for_ori(_cands(), 1, 12, rng)
-        assert 1 not in d["base_positions"] and 12 not in d["base_positions"], d
+    a, ra = mrs.sample_for_ori(_cands(), 1, 6, random.Random(7))
+    b, rb = mrs.sample_for_ori(_cands(), 1, 6, random.Random(7))
+    assert ra == rb
 
 
-def test_sampling_stays_inside_its_own_ori_window():
+def test_sampling_actually_varies_across_designs():
     import random
-    rng = random.Random(11)
-    for _ in range(30):
-        _, d = mrs.sample_for_ori(_cands(), 7, 12, rng)
-        assert all(7 <= p <= 11 for p in d["base_positions"]), d
-
-
-def test_either_strand_picks_one_strand_per_design_not_both():
-    """Conditioning both strands doubly constrains the same base pairs."""
-    import random
-    rng = random.Random(2)
-    strands = set()
-    for _ in range(30):
-        _, d = mrs.sample_for_ori(_cands(), 1, 12, rng, strand="either")
-        assert len(d["strands"]) == 1, d
-        strands |= set(d["strands"])
-    assert strands == {"A", "B"}, f"only ever drew {strands}"
+    rng = random.Random(42)
+    draws = [mrs.sample_for_ori(_cands(), 1, 6, rng, (2, 5), "either")[1]
+             for _ in range(30)]
+    assert len({tuple(d["base_positions"]) for d in draws}) > 1
+    assert len({d["n_bases_drawn"] for d in draws}) > 1
 
 
 def test_fixed_mode_is_unchanged_and_remains_the_default():

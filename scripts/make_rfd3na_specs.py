@@ -62,6 +62,61 @@ def _group_hbond(candidates, role):
     return {k: ",".join(v) for k, v in out.items()}
 
 
+_COMPLEMENT = {"DA": "DT", "DT": "DA", "DG": "DC", "DC": "DG"}
+
+
+def bp_index_map(candidates):
+    """Map every (chain, res_id) to a common BASE-PAIR index, verified from the data.
+
+    THE BUG THIS FIXES, found 2026-08-07
+    ------------------------------------
+    Both strands are numbered 1..L independently in the conditioning bundle, and the
+    duplex is ANTIPARALLEL, so B_j pairs with A_(L+1-j) -- NOT with A_j. Every window
+    filter here compared `bp_start <= res_id <= bp_end` directly, which silently reads
+    antisense positions in sense numbering and therefore selects the OPPOSITE END of the
+    duplex.
+
+    It was dormant while conditioning was purine-strand-only (chain A), and went live the
+    moment `--hbond-strand either/both` was used: 3 of 10 Phase-2.5 sampled specs drew
+    strand B and got constraints in the other ori's half of the target.
+
+    The pairing is VERIFIED, not assumed: base at B_j must be the Watson-Crick complement
+    of the base at A_(L+1-j), and this raises if it is not. A duplex whose strands are not
+    a reverse-complement pair (a mismatch or a non-standard target) must fail loudly here
+    rather than produce a plausible, wrong window.
+
+    Returns {(chain, res_id): bp_index} in the reference (purine-rich) strand's numbering.
+    """
+    by_chain: dict[str, dict[int, str]] = {}
+    for c in candidates:
+        by_chain.setdefault(c["chain"], {})[c["res_id"]] = c["res_name"]
+    chains = sorted(by_chain)
+    if len(chains) == 1:
+        ch = chains[0]
+        return {(ch, r): r for r in by_chain[ch]}
+    if len(chains) != 2:
+        raise ValueError(f"expected 1 or 2 DNA chains, got {chains}")
+
+    ref = purine_chain(candidates)
+    other = [c for c in chains if c != ref][0]
+    length = max(max(by_chain[ref]), max(by_chain[other]))
+
+    out = {(ref, r): r for r in by_chain[ref]}
+    for r, name in by_chain[other].items():
+        partner = length + 1 - r
+        ref_name = by_chain[ref].get(partner)
+        # only checkable where both strands contributed a candidate atom at that pair;
+        # a pyrimidine with no major-groove atom simply is not in the bundle
+        if ref_name is not None and _COMPLEMENT.get(name) != ref_name:
+            raise ValueError(
+                f"strand pairing check FAILED: {other}{r} ({name}) should pair with "
+                f"{ref}{partner} but that is {ref_name}, not {_COMPLEMENT.get(name)}. "
+                "The two strands are not a reverse-complement pair, so base-pair indices "
+                "cannot be inferred -- refusing rather than emitting a wrong window.")
+        out[(other, r)] = partner
+    return out
+
+
 def purine_chain(candidates):
     """Which strand is the purine-rich one, counted from the data (not assumed).
 
@@ -110,20 +165,22 @@ def subset_for_ori(candidates, bp_start, bp_end, n_central, strand):
     the bidentate pairs Arg and Asn actually form against a purine, so splitting them
     would specify a weaker and less physical constraint.
     """
-    all_ids = [c["res_id"] for c in candidates]
-    duplex_lo, duplex_hi = min(all_ids), max(all_ids)
+    bp_of = bp_index_map(candidates)          # antiparallel-safe; see bp_index_map
+    all_bp = set(bp_of.values())
+    duplex_lo, duplex_hi = min(all_bp), max(all_bp)
     chains = {purine_chain(candidates)} if strand == "purine" else \
         {c["chain"] for c in candidates}
 
-    usable = sorted({c["res_id"] for c in candidates
+    usable = sorted({bp_of[(c["chain"], c["res_id"])] for c in candidates
                      if c["chain"] in chains
-                     and bp_start <= c["res_id"] <= bp_end
-                     and duplex_lo < c["res_id"] < duplex_hi})
+                     and bp_start <= bp_of[(c["chain"], c["res_id"])] <= bp_end
+                     and duplex_lo < bp_of[(c["chain"], c["res_id"])] < duplex_hi})
     if n_central and len(usable) > n_central:
         off = (len(usable) - n_central) // 2
         usable = usable[off:off + n_central]
     keep = set(usable)
-    return [c for c in candidates if c["chain"] in chains and c["res_id"] in keep]
+    return [c for c in candidates
+            if c["chain"] in chains and bp_of[(c["chain"], c["res_id"])] in keep]
 
 
 def sample_for_ori(candidates, bp_start, bp_end, rng, n_bases_range=(2, 5),
@@ -146,29 +203,44 @@ def sample_for_ori(candidates, bp_start, bp_end, rng, n_bases_range=(2, 5),
     existing arms stay reproducible.
 
     THE MECHANISM IS OURS. The paper says the set is diverse; it does not say how it is
-    drawn. What is sampled here:
+    drawn. The rules below were chosen with the user on 2026-08-07, and each is tagged
+    with whether the paper constrains it:
 
-      * how many base positions (uniform over n_bases_range, inclusive) -- so a design
-        may be loosely or tightly constrained, which is the diversity that matters;
-      * which positions, uniformly without replacement from this ori's window;
-      * which strand, per design, when strand="either".
+      * CANDIDATE POOL -- every major-groove donor/acceptor on EITHER strand.
+        [PAPER] "candidate major groove donor and acceptor atoms": no strand restriction,
+        and no phosphate/sugar atoms. The previous purine-strand-only rule was ours and
+        is narrower than the paper; foundry's shipped example is wider than it (it mixes
+        in backbone atoms, which we deliberately do not copy -- backbone gripping is
+        already what our designs do too much of).
+      * CONTIGUOUS RUN -- n consecutive base pairs, not a scattered subset.
+        [OURS] A recognition helix reads a consecutive stretch of the major groove, so a
+        scattered set may demand a contact geometry no single fold can satisfy.
+      * COUNT -- n uniform over n_bases_range (default 2-5, capped by the window).
+        [OURS] The paper is silent. Foundry's TRAINING subsamples to roughly a third of
+        candidate atoms (~12 of 36 here); 2-5 bases spans 2-10 atoms depending on strand,
+        so it brackets that from below.
+      * WINDOW -- the run stays inside this ori's own bp span.
+        [OURS] The paper places one ori per 6 consecutive bp but never ties the H-bond
+        constraints to that same span. Kept deliberately, to preserve the association
+        between where the protein is centred and which bases it is asked to read. It is
+        what caps the run length at 5 for a 6-bp window.
+      * TERMINAL BASE PAIRS EXCLUDED. [OURS] The predicted duplex frays at its ends.
 
     Both atoms of a base are always kept together -- G N7+O6 and A N7+N6 are the
     bidentate pairs Arg and Asn actually form against a purine, so splitting them
-    specifies a weaker and less physical constraint. Terminal base pairs of the duplex
-    are excluded, where the predicted duplex frays.
+    specifies a weaker and less physical constraint.
 
-    Two upstream (foundry, not paper) signals bound the count from above: training
-    subsamples to roughly a third of candidate atoms, and the shipped 14-bp
-    na_binder_design.json example specifies 16 atoms over 4 base positions across BOTH
-    strands. The default 2-5 bases spans 4-10 atoms against PRNP's 36 candidates, which
-    straddles that third.
+    ALL POSITIONS ARE BASE-PAIR INDICES (see bp_index_map), never raw res_ids: the two
+    strands are numbered independently and the duplex is antiparallel, so comparing a
+    chain-B res_id against a sense-strand window silently selects the opposite end of the
+    target. That defect shipped in the Phase-2.5 sampled arms.
 
     Returns (kept_candidates, draw_record) -- the record is written into the manifest so
     any design can be traced back to the exact constraint set that produced it.
     """
-    all_ids = [c["res_id"] for c in candidates]
-    duplex_lo, duplex_hi = min(all_ids), max(all_ids)
+    bp_of = bp_index_map(candidates)
+    all_bp = set(bp_of.values())
+    duplex_lo, duplex_hi = min(all_bp), max(all_bp)
 
     if strand == "either":
         chains = sorted({c["chain"] for c in candidates})
@@ -179,24 +251,44 @@ def sample_for_ori(candidates, bp_start, bp_end, rng, n_bases_range=(2, 5),
         chosen = sorted({c["chain"] for c in candidates})
     chosen_set = set(chosen)
 
-    usable = sorted({c["res_id"] for c in candidates
+    usable = sorted({bp_of[(c["chain"], c["res_id"])] for c in candidates
                      if c["chain"] in chosen_set
-                     and bp_start <= c["res_id"] <= bp_end
-                     and duplex_lo < c["res_id"] < duplex_hi})
+                     and bp_start <= bp_of[(c["chain"], c["res_id"])] <= bp_end
+                     and duplex_lo < bp_of[(c["chain"], c["res_id"])] < duplex_hi})
+
+    # Contiguous run. `usable` may have gaps (a pyrimidine with no major-groove atom is
+    # simply absent), so runs are found over ACTUAL consecutive bp indices rather than by
+    # slicing the list -- slicing would silently emit a "run" that jumps a gap.
+    runs = []
+    for i, start in enumerate(usable):
+        run = [start]
+        for nxt in usable[i + 1:]:
+            if nxt != run[-1] + 1:
+                break
+            run.append(nxt)
+        runs.append(run)
+
     lo, hi = n_bases_range
-    n = rng.randint(lo, hi) if usable else 0
-    n = min(n, len(usable))
-    keep_ids = sorted(rng.sample(usable, n)) if n else []
+    longest = max((len(r) for r in runs), default=0)
+    n = min(rng.randint(lo, hi), longest) if longest else 0
+    candidates_runs = [r[:n] for r in runs if len(r) >= n] if n else []
+    keep_ids = sorted(rng.choice(candidates_runs)) if candidates_runs else []
     kept = [c for c in candidates
-            if c["chain"] in chosen_set and c["res_id"] in set(keep_ids)]
+            if c["chain"] in chosen_set
+            and bp_of[(c["chain"], c["res_id"])] in set(keep_ids)]
     return kept, {
         "mode": "random",
+        "pattern": "contiguous",
         "strands": chosen,
         "n_bases_drawn": n,
         "n_bases_available": len(usable),
+        # BASE-PAIR indices, in the purine-rich strand's numbering -- comparable across
+        # strands, unlike the raw res_ids recorded before 2026-08-07
         "base_positions": keep_ids,
         "n_atoms": len(kept),
         "atoms": sorted(f"{c['chain']}{c['res_id']}:{c['atom']}" for c in kept),
+        "atom_bp_positions": sorted(
+            {bp_of[(c["chain"], c["res_id"])] for c in kept}),
     }
 
 

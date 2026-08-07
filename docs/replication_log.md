@@ -699,3 +699,69 @@ i.e. it extrapolates *away* from what the model would have done knowing nothing 
 H-bond constraints. `cfg_scale = 1.0` is a no-op; our 1.5 pushes 50% past the conditional
 prediction. `cfg_t_max` is null, so it applies at every timestep. **Cost: two forward
 passes per step instead of one** whenever CFG is on.
+
+## Conditioning sampling — design decisions, and a defect in the Phase-2.5 sampled arms (2026-08-07)
+
+### Defect: antisense constraints landed on the wrong half of the duplex
+
+Both strands are numbered 1..L independently in the conditioning bundle, and the duplex
+is **antiparallel** — so B*j* pairs with A*(L+1−j)*, not A*j*. Every window filter in
+`make_rfd3na_specs.py` compared `bp_start <= res_id <= bp_end` directly, which reads an
+antisense position in sense numbering and therefore selects the **opposite end of the
+target**.
+
+It was dormant while conditioning was purine-strand-only, and went live the moment
+`--hbond-strand either` was used. **3 of the 10 Phase-2.5 sampled specs drew strand B**,
+so 12 of the 40 sampled-arm designs (6 per arm) carried H-bond constraints in the other
+ori's half of the duplex, disagreeing with their own ori token:
+
+| spec | ori window | drew | actually targeted |
+|---|---|---|---|
+| `p25smp_ori1_h3` | bp 1–6 | B2, B5 | bp 11, 8 |
+| `p25smp_ori2_h4` | bp 7–12 | B8–B11 | bp 2–5 |
+| `p25smp_ori2_h5` | bp 7–12 | B7–B11 | bp 2–6 |
+
+**What this does and does not change.** The reported Phase-2.5 conclusions were "no
+resolvable difference between any arms" and "0/80 clear the 8 Å gate" — the latter is
+unaffected (it held in all four cells, including the two fixed-conditioning cells that
+never touched strand B). But the *sampled* level of the conditioning main effect was not
+cleanly testing sampled conditioning: 12 of its 40 designs were mis-targeted. That
+comparison should be treated as not yet run, rather than as a null result.
+
+Fixed by `bp_index_map()`, which maps every (chain, res_id) to a common base-pair index
+and **verifies the pairing** against Watson–Crick complementarity rather than assuming
+it — a duplex whose strands are not a reverse-complement pair now fails loudly instead of
+producing a plausible, wrong window. Five tests fail against the old code, and the test
+fixture itself was corrected (it had numbered chain B in parallel, which would have made
+every pairing test pass vacuously).
+
+### The sampling rules, agreed 2026-08-07, tagged by provenance
+
+| rule | setting | paper? |
+|---|---|---|
+| candidate pool | every major-groove donor/acceptor, **both strands**, no backbone atoms | **PAPER** — "candidate major groove donor and acceptor atoms"; no strand restriction, and "major groove" excludes phosphate/sugar |
+| pattern | **contiguous run** of base pairs | OURS — a recognition helix reads a consecutive stretch; a scattered set may demand geometry no single fold satisfies |
+| count | 2–5 bases, uniform, capped by the window | OURS — paper silent. Gives 2–10 atoms of 36 depending on strand |
+| window | run confined to its own ori's bp span | OURS — the paper places one ori per 6 bp but never ties constraints to that span. Kept to preserve the association between where the protein is centred and which bases it reads; this is what caps runs at 5 |
+| terminal base pairs | excluded | OURS — the predicted duplex frays at its ends |
+
+The previous purine-strand-only rule is **dropped**: it was ours and narrower than the
+paper. Foundry's shipped example is wider than the paper (it mixes in phosphate/sugar
+atoms) and is deliberately **not** copied — backbone gripping is already what our designs
+do too much of (median 2 major-groove H-bonds against ~19 total protein–DNA contacts).
+
+A requested 2–8 base range was capped to 2–5 by the window rule: a 6-bp ori window minus
+one terminal base pair leaves 5 usable positions. Both choices were made knowingly.
+
+### What CFG is, since it stays on
+
+`inference_sampler.py:273-305`. Each diffusion step runs the model twice — once with the
+conditioning features, once with the `cfg_features` entries zeroed — and combines them:
+
+    delta = delta_cond + (cfg_scale - 1) * (delta_cond - delta_uncond)
+
+The bracketed term is the part of the model's instinct that exists *only* because of the
+H-bond constraints; CFG amplifies exactly that. `cfg_scale=1.0` is a no-op, ours is 1.5.
+**Cost: two forward passes per step**, so CFG roughly doubles diffusion GPU time. Our own
+arms found no resolvable difference between on and off, and foundry ships it `False`;
+kept on as a mechanistic choice, recorded as such.
