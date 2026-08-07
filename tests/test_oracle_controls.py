@@ -494,3 +494,4 @@ def test_protein_len_stays_a_count_the_consumer_understands(tmp_path):
     from compute_delta_minpae import _protein_len_range
     assert jobs[0]["protein_len"] == 83 and jobs[0]["protein_copies"] == 2
     assert _protein_len_range(jobs[0]) == (0, 166)
+

@@ -507,3 +507,62 @@ already unit-tested; only the end-to-end run is outstanding.
 - The recalibrated 6.6 Å gate rests on 5 proteins.
 - CFG is on with no paper basis (foundry ships `False`).
 - The H-bond sampling *mechanism* is ours; the paper states only that the set is diverse.
+
+
+## Specificity block VALIDATED on the control panel (2026-08-06)
+
+The block's own ranking code now reproduces the control panel's recorded answer exactly.
+This was the gate on running anything on designs, and it is green.
+
+`analysis/oracle_controls/validate_specificity_block.py` reshapes the 64-fold natural-TF
+panel into the specificity block's manifest schema and runs
+**`scripts/compute_delta_minpae.py`** over it — the block's own script, not the
+control-panel one that produced the original numbers. Two implementations of a minimum
+over the same matrix is exactly where a silent inconsistency would live.
+
+| protein | ΔminPAE | on-target | best off-target | argmin |
+|---|---|---|---|---|
+| LambdaRep | **+1.93** | 3.87 | 5.80 | lambda_OL1 ✓ |
+| MAX_bHLH | **+1.83** | 2.15 | 3.98 | ebox ✓ |
+| Zif268 | **+1.60** | 1.07 | 2.67 | zif268_site ✓ |
+| Engrailed | **+0.26** | 3.88 | 4.14 | hd_taatta ✓ |
+| TBP | −2.16 | 15.73 | 13.57 | scramble ✗ |
+
+argmin on own site **4/5**, ΔminPAE > 0 **4/5** — matching the recorded result value for
+value, TBP included (the minor-groove reader flagged as a stress test before any fold was
+run). Outputs committed to `results/specificity_block/validation_controls_*.csv`.
+
+### Recovering the PAE files: a pecli resolver bug, not our data
+
+The scratchpad holding the PAEs had been cleaned, and re-downloading turned out to be the
+hard part. `pecli runs --group oracle-controls-rf3` lists all 63 runs as SUCCEEDED, but
+`pecli results <id>` answers **`unknown run`** for every one of them.
+
+The cause is in pecli (`pecli/runner.py::_resolve`), not in our ids:
+
+    find_by_short_id -> runs.list_for_user(user_id, limit=100)   # 100 NEWEST, per user
+    fallback         -> runs.list_all(limit=200)                 # 200 NEWEST, team-wide
+
+Both are **recency windows**; `pecli runs --group` queries the sparse group index, which
+has none. So any run older than roughly the 100 most recent is listed but unresolvable,
+and the two commands disagree about whether it exists. These folds are from 2026-07-30.
+Worth filing: `pecli results` should fall back to the same index `pecli runs` uses rather
+than calling a listed run unknown.
+
+**This retires the earlier diagnosis.** The stop-point note said the run_ids committed in
+`folds/rf3_manifest.json` were corrupted by the manifest race. They are not — `5347ff`,
+the id cited there as proof, is correct and resolves to the right fold. Neither those
+ids, nor ids scraped from `pecli runs`, nor the full `YYYYMMDD-HHMMSS-xxxxxx` ids from
+`~/.pecli/jobs.json` resolve, because the id was never the problem. (`pecli runs` also
+displays only the 6-char suffix of a run id, which sent the first attempt down the wrong
+path.) A `remap_run_ids.py` written against that wrong diagnosis was deleted rather than
+kept.
+
+`analysis/oracle_controls/fetch_group_results.py` is the working route: query the group
+index, read `s3_output` off each Run record, and call the same S3 download `pecli results`
+would have, skipping resolution entirely. Free — S3 GETs only. It recovered 63/63.
+
+The 64th fold, **Zif268's on-target**, is not in the rf3 group at all: it was submitted
+earlier as the schema probe, under `oracle-controls-probe`. Nothing was wrong with it —
+but note the panel's most load-bearing single fold sits outside the group its 63 siblings
+share, which is worth knowing before anyone treats the group as the panel.
