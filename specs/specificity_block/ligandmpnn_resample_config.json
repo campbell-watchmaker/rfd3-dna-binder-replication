@@ -8,7 +8,9 @@
   "number_of_batches": 4,
   "_total_sequences": "batch_size * number_of_batches = 100 per backbone (paper scale). For a smoke test reduce to e.g. 10.",
 
-  "chains_to_design": "SET_FROM_RFD3NA_OUTPUT",
+  "chains_to_design": "C",
+  "_chains_to_design": "The DESIGNED PROTEIN chain only -- never the DNA chains, which are fixed context. 'C' was READ OFF a real relaxed rfd3na backbone, not assumed: rfd3na emits the fixed target duplex first, so the relaxed PDB is DNA A(12 nt) + DNA B(12 nt) + protein C(123 aa). Note this is the OPPOSITE of the refold's layout (protein A + DNA B,C from build_fold_inputs.py) -- that very mismatch caused the Stage-7 RMSD bug where protein Ca found zero overlap and the DNA matched the wrong strand. This field was the literal placeholder 'SET_FROM_RFD3NA_OUTPUT' until 2026-08-06. Re-read the chain layout from the relaxed PDB if the diffusion spec's contig order ever changes; do not carry 'C' forward on faith.",
+
 
   "packing": {
     "pack_side_chains": true,

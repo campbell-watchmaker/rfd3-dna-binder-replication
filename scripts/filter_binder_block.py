@@ -28,6 +28,7 @@ import argparse
 import csv
 import json
 import os
+import sys
 
 import numpy as np
 import biotite.structure as struc
@@ -62,19 +63,78 @@ def _protein_dna_masks(arr):
     return prot, dna
 
 
+def _dna_strand_sequences(arr):
+    """{chain_id: one-letter base sequence} for each DNA chain, 5'->3' by res_id."""
+    _, dna_mask = _protein_dna_masks(arr)
+    dna = arr[dna_mask]
+    out = {}
+    for ch in sorted(set(dna.chain_id.tolist())):
+        c = dna[dna.chain_id == ch]
+        out[ch] = "".join(c.res_name[c.res_id == r][0][-1] for r in np.unique(c.res_id))
+    return out
+
+
+def _match_dna_chains(design_arr, refold_arr):
+    """Map refold DNA chain id -> design DNA chain id, BY BASE SEQUENCE.
+
+    Chain letters are NOT comparable between these two structures. rfd3na writes the
+    duplex first and the designed protein last (DNA = A,B; protein = C), while the
+    refold spec declares the protein first (protein = A; DNA = B,C). Matching DNA on
+    the chain letter therefore pairs the design's ANTISENSE strand with the refold's
+    SENSE strand -- and because the sugar-phosphate backbone atom names are identical
+    in every nucleotide, ~130 atoms "match" and the superposition silently succeeds on
+    the wrong strand, returning a confident, meaningless RMSD.
+
+    So pair the strands by sequence instead, which is unambiguous for a
+    non-palindromic duplex.
+    """
+    d_seqs = _dna_strand_sequences(design_arr)
+    r_seqs = _dna_strand_sequences(refold_arr)
+    mapping, used = {}, set()
+    for r_ch, r_seq in r_seqs.items():
+        for d_ch, d_seq in d_seqs.items():
+            if d_ch not in used and d_seq == r_seq:
+                mapping[r_ch] = d_ch
+                used.add(d_ch)
+                break
+    if len(mapping) != len(r_seqs):
+        raise ValueError(
+            f"could not pair DNA strands by sequence: design {d_seqs} vs refold {r_seqs}")
+    return mapping
+
+
 def dna_aligned_ca_rmsd(design_arr, refold_arr):
-    """Superpose refold onto design by DNA atoms; return protein Ca RMSD after that fit."""
-    d_prot, d_dna = _protein_dna_masks(design_arr)
-    r_prot, r_dna = _protein_dna_masks(refold_arr)
+    """Superpose refold onto design by DNA atoms; return protein Ca RMSD after that fit.
 
-    # match DNA atoms by (chain, res_id, atom_name); use the common set, in order
-    def dna_index(arr, mask):
+    THE REFOLD MUST BE UNTEMPLATED. This metric asks whether the designed sequence
+    INDEPENDENTLY folds back into the backbone it was designed for. Supplying that
+    backbone as a template hands the fold the answer: RMSD collapses toward zero and
+    the gate passes everything. The specificity block's all-by-all IS templated (see
+    scripts/build_allbyall_inputs.py) and that is correct there, because it compares
+    one fixed pose across many DNA targets rather than testing self-consistency. Do
+    not carry templating over to this stage -- the paper does not either
+    ("Templates were not used throughout the design campaign with the exception of
+    the all-by-all folding step in the specificity block").
+
+    Both correspondences are established WITHOUT trusting chain letters (see
+    _match_dna_chains): DNA strands are paired by base sequence, and protein Ca atoms
+    are matched in sequential order along the single designed chain. The refold is a
+    prediction of the same sequence, so residue i corresponds to residue i.
+    """
+    chain_map = _match_dna_chains(design_arr, refold_arr)
+
+    def dna_index(arr, remap=None):
+        _, mask = _protein_dna_masks(arr)
         sub = arr[mask]
-        return {(a.chain_id, a.res_id, a.atom_name): i for i, a in enumerate(sub)}, sub
+        idx = {}
+        for i, a in enumerate(sub):
+            ch = remap.get(a.chain_id, a.chain_id) if remap else a.chain_id
+            idx[(ch, a.res_id, a.atom_name)] = i
+        return idx, sub
 
-    d_idx, d_sub = dna_index(design_arr, d_dna)
-    r_idx, r_sub = dna_index(refold_arr, r_dna)
-    common = [k for k in d_idx if k in r_idx]
+    d_idx, d_sub = dna_index(design_arr)
+    r_idx, r_sub = dna_index(refold_arr, remap=chain_map)
+    common = sorted(k for k in d_idx if k in r_idx)
     if len(common) < 3:
         raise ValueError(f"too few common DNA atoms to superpose ({len(common)})")
     d_dna_coords = d_sub[[d_idx[k] for k in common]]
@@ -84,19 +144,25 @@ def dna_aligned_ca_rmsd(design_arr, refold_arr):
     _, transform = struc.superimpose(d_dna_coords, r_dna_coords)
     refold_moved = transform.apply(refold_arr)
 
-    # protein Ca RMSD between design and transformed refold, matched by (chain,res_id)
-    def ca_map(arr):
-        m = arr[(struc.filter_amino_acids(arr)) & (arr.atom_name == "CA")]
-        return {(a.chain_id, a.res_id): arr_i for arr_i, a in enumerate(m)}, m
+    # protein Ca, matched in sequential order (chain letters differ; see above)
+    def ca_ordered(arr):
+        m = arr[struc.filter_amino_acids(arr) & (arr.atom_name == "CA")]
+        order = np.lexsort((m.res_id, m.chain_id))
+        return m[order]
 
-    d_ca_idx, d_ca = ca_map(design_arr)
-    r_ca_idx, r_ca = ca_map(refold_moved)
-    ca_common = [k for k in d_ca_idx if k in r_ca_idx]
-    if not ca_common:
-        raise ValueError("no common protein Ca atoms")
-    dc = d_ca.coord[[d_ca_idx[k] for k in ca_common]]
-    rc = r_ca.coord[[r_ca_idx[k] for k in ca_common]]
-    return float(np.sqrt(np.mean(np.sum((dc - rc) ** 2, axis=1)))), len(ca_common)
+    d_ca = ca_ordered(design_arr)
+    r_ca = ca_ordered(refold_moved)
+    n = min(d_ca.array_length(), r_ca.array_length())
+    if n == 0:
+        raise ValueError("no protein Ca atoms")
+    if d_ca.array_length() != r_ca.array_length():
+        # a length mismatch means these are not the same design; refuse rather than
+        # silently compare a truncated prefix
+        raise ValueError(
+            f"protein length mismatch: design has {d_ca.array_length()} Ca, "
+            f"refold has {r_ca.array_length()}")
+    dc, rc = d_ca.coord, r_ca.coord
+    return float(np.sqrt(np.mean(np.sum((dc - rc) ** 2, axis=1)))), n
 
 
 def count_protein_dna_hbonds(arr):
@@ -140,13 +206,65 @@ def count_protein_dna_hbonds(arr):
     return total, major
 
 
+def protein_only_ca_rmsd(design_arr, refold_arr):
+    """Protein Ca-RMSD after superposing protein-on-protein, ignoring the DNA.
+
+    The paper's gate is the DNA-aligned RMSD, but on its own that number cannot say
+    WHY a design failed: a correctly folded protein docked in the wrong place and a
+    misfolded protein both score badly. Reporting this alongside separates them, which
+    is what actually tells you where to intervene -- observed on the first smoke-test
+    batch, 9/50 sequences folded to <3 A yet sat >8 A off after DNA alignment, i.e.
+    LigandMPNN was producing foldable sequences and the failure was placement.
+    """
+    def ca(a):
+        m = a[struc.filter_amino_acids(a) & (a.atom_name == "CA")]
+        return m[np.lexsort((m.res_id, m.chain_id))]
+
+    d, r = ca(design_arr), ca(refold_arr)
+    if d.array_length() == 0 or d.array_length() != r.array_length():
+        raise ValueError(
+            f"protein Ca count mismatch: design {d.array_length()}, refold {r.array_length()}")
+    fitted, _ = struc.superimpose(d, r)
+    return float(struc.rmsd(d, fitted))
+
+
 def analyze_one(design_path, refold_path):
     design = _load_any(design_path)
     refold = _load_any(refold_path)
     rmsd, n_ca = dna_aligned_ca_rmsd(design, refold)
+    prot_rmsd = protein_only_ca_rmsd(design, refold)
     hb_total, hb_major = count_protein_dna_hbonds(refold)
-    return {"dna_aligned_ca_rmsd": round(rmsd, 3), "n_ca_matched": n_ca,
+    return {"dna_aligned_ca_rmsd": round(rmsd, 3),
+            "protein_only_ca_rmsd": round(prot_rmsd, 3), "n_ca_matched": n_ca,
             "protein_dna_hbonds": hb_total, "major_groove_hbonds": hb_major}
+
+
+def _on_target_min_pae(job):
+    """On-target minPAE for one refold, or None if no PAE is available.
+
+    The specificity block's entry gate is an on-target minPAE cut, but nothing computed
+    it: this script emitted RMSD/ipTM/H-bonds only, so the criterion could not be
+    evaluated at all -- even though the PAE was already sitting on disk in each rf3
+    refold's `*_confidences.json`. Reuses compute_delta_minpae.py's loader and masks so
+    the number is defined identically here and in the ΔminPAE ranking; two independent
+    implementations of a minimum over the same matrix is exactly how a silent
+    inconsistency gets in.
+    """
+    path = job.get("pae_path")
+    if not path or path == "FILL_AFTER_FOLD" or not os.path.exists(path):
+        return None
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from compute_delta_minpae import load_pae, protein_dna_token_masks, min_pae, \
+        _protein_len_range
+    try:
+        pae, chains = load_pae(path)
+        prot, dna = protein_dna_token_masks(
+            pae.shape[0], chains,
+            job.get("protein_chain", "A"), job.get("dna_chains", ["B", "C"]),
+            _protein_len_range(job), [tuple(r) for r in job.get("dna_ranges", [])])
+        return round(min_pae(pae, prot, dna), 4)
+    except Exception:
+        return None
 
 
 def main():
@@ -165,6 +283,12 @@ def main():
                     help="override the stage default (8.0 pre_resample, 3.0 post_resample)")
     ap.add_argument("--iptm-gate", type=float, default=0.7,
                     help="ignored at --stage pre_resample")
+    ap.add_argument("--min-pae-gate", type=float, default=None,
+                    help="also require on-target minPAE < this, for selecting specificity-"
+                         "block entrants. The paper's literal 1.25 does NOT transfer to rf3 "
+                         "(1/5 real TFs clear it); the recalibrated rf3 cut is 6.6 -- see "
+                         "specs/specificity_block/fold_config.json for the derivation. "
+                         "Requires pae_path in the manifest.")
     args = ap.parse_args()
 
     # Paper sequence (Methods, "Binder block"): fold -> RMSD < 8 A -> LigandMPNN
@@ -181,14 +305,17 @@ def main():
         try:
             m = analyze_one(j["design_path"], j["refold_path"])
         except Exception as e:
-            m = {"dna_aligned_ca_rmsd": None, "n_ca_matched": 0,
-                 "protein_dna_hbonds": None, "major_groove_hbonds": None, "error": str(e)}
+            m = {"dna_aligned_ca_rmsd": None, "protein_only_ca_rmsd": None,
+                 "n_ca_matched": 0, "protein_dna_hbonds": None,
+                 "major_groove_hbonds": None, "error": str(e)}
         row = {"design_id": j["design_id"], "oracle": j.get("oracle", "unknown"),
-               "iptm": j.get("iptm"), "runtime_s": j.get("runtime_s"), "gpu": j.get("gpu"), **m}
+               "iptm": j.get("iptm"), "runtime_s": j.get("runtime_s"), "gpu": j.get("gpu"),
+               "min_pae": _on_target_min_pae(j), **m}
         all_rows.append(row)
 
-    cols = ["design_id", "oracle", "dna_aligned_ca_rmsd", "iptm", "protein_dna_hbonds",
-            "major_groove_hbonds", "n_ca_matched", "runtime_s", "gpu"]
+    cols = ["design_id", "oracle", "dna_aligned_ca_rmsd", "protein_only_ca_rmsd", "iptm",
+            "min_pae", "protein_dna_hbonds", "major_groove_hbonds", "n_ca_matched",
+            "error", "runtime_s", "gpu"]
     os.makedirs(os.path.dirname(args.oracle_comparison) or ".", exist_ok=True)
     with open(args.oracle_comparison, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
@@ -198,6 +325,10 @@ def main():
     def passes(r):
         if r["dna_aligned_ca_rmsd"] is None or r["dna_aligned_ca_rmsd"] >= args.rmsd_gate:
             return False
+        if args.min_pae_gate is not None:
+            # an unavailable minPAE must NOT silently pass a gate that was asked for
+            if r.get("min_pae") is None or r["min_pae"] >= args.min_pae_gate:
+                return False
         if not use_iptm:
             return True
         return r.get("iptm") is not None and r["iptm"] > args.iptm_gate
@@ -210,7 +341,17 @@ def main():
 
     print(f"analyzed {len(all_rows)} (design,oracle) rows -> {args.oracle_comparison}")
     gate = f"RMSD<{args.rmsd_gate}" + (f", ipTM>{args.iptm_gate}" if use_iptm else " (no ipTM gate)")
+    if args.min_pae_gate is not None:
+        gate += f", minPAE<{args.min_pae_gate}"
     print(f"stage={args.stage}: {len(passers)} passers ({gate}) -> {args.out}")
+    n_pae = sum(1 for r in all_rows if r.get("min_pae") is not None)
+    if n_pae:
+        vals = sorted(r["min_pae"] for r in all_rows if r.get("min_pae") is not None)
+        print(f"  minPAE recovered for {n_pae}/{len(all_rows)}: "
+              f"min {vals[0]}, median {vals[len(vals) // 2]}, max {vals[-1]}")
+    elif args.min_pae_gate is not None:
+        print("  WARNING: --min-pae-gate was given but NO row had a readable PAE, so every "
+              "row failed the gate. Check that the manifest carries pae_path.")
     if args.stage == "pre_resample":
         print("  -> feed these to LigandMPNN resampling, then re-run with "
               "--stage post_resample on the resampled folds")

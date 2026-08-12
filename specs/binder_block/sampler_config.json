@@ -1,6 +1,5 @@
 {
-  "_comment": "pecli rfd3na submit-time sampler config for the binder block. These are the diffusion knobs, NOT the design layout (that lives in the rfd3na_specs/*.json). Values match the paper (Sehgal et al. 2026, Fig. S4f) and pecli rfd3na defaults. Field names follow the pecli rfd3na tool interface; see pecli/tools/guides/rfd3na.md.",
-
+  "_comment": "pecli rfd3na submit-time sampler config for the binder block. These are the diffusion knobs, NOT the design layout (that lives in the rfd3na_specs/*.json). Field names follow the pecli rfd3na tool interface; see pecli/tools/guides/rfd3na.md.",
   "_smoke_test": {
     "_comment": "SMOKE TEST scale first (user decision): ~10 designs total to validate the spec end-to-end before committing GPU budget. total designs = diffusion_batch_size * n_batches.",
     "diffusion_batch_size": 5,
@@ -10,12 +9,16 @@
     "gamma_0": 0.6,
     "use_classifier_free_guidance": true,
     "cfg_scale": 1.5,
-    "cfg_features": ["active_donor", "active_acceptor"],
+    "cfg_features": [
+      "active_donor",
+      "active_acceptor"
+    ],
+    "_cfg_note": "CFG is ON here but is NOT the shipped default: foundry's configs/model/samplers/edm.yaml has use_classifier_free_guidance: False. It is kept on because Butcher et al. 2025 (the RFD3 methods paper, ref [18]) reports an ablation where CFG improves H-bond satisfaction -- small molecules 26.67% -> 32.67% with conditioning -> 36.67% with CFG. Note the DNA effect there is MARGINAL: 11% vs 11.3% vs 12.5%. So this is a deliberate, weakly-supported choice attributable to Butcher et al., not to Sehgal et al. Also note foundry's default cfg_features additionally include ref_atomwise_rasa (and bp_partners in the inference-engine config); we pass only the two H-bond features.",
     "prevalidate_inputs": true,
     "gpu": "large",
-    "_gpu_note": "L40S 48GB: protein+dsDNA is a multi-chain complex; start on large to avoid an A10G OOM on the smoke test, then right-size for the full run based on observed memory."
+    "_gpu_note": "L40S 48GB: protein+dsDNA is a multi-chain complex; start on large to avoid an A10G OOM on the smoke test, then right-size for the full run based on observed memory.",
+    "_cfg_features_note": "CORRECTED 2026-08-07. Our VALUE never reaches the sampler -- pecli's rfd3na tool exposes no cfg_features field and the container does not override it -- but the field is NOT unset. It falls back to foundry's own default in models/rfd3na/configs/inference_engine/rfdiffusion3.yaml, which is [active_donor, active_acceptor, ref_atomwise_rasa, bp_partners]. Both H-bond features we wanted ARE guided; two we did not ask for (solvent accessibility and base-pair partners) are guided as well. So the earlier note here -- 'this setting has never reached the sampler' -- was right about our value and WRONG about the effect: H-bond guidance was never absent. Keeping our list is therefore a no-op, and narrowing to only the two H-bond features would require a pecli change."
   },
-
   "_full_run": {
     "_comment": "Paper scale for reference (NOT for the smoke test): ~1000 backbones per ori. Run only after the smoke test validates the spec. Swept once per ori spec in the manifest.",
     "diffusion_batch_size": 8,
@@ -25,8 +28,14 @@
     "gamma_0": 0.6,
     "use_classifier_free_guidance": true,
     "cfg_scale": 1.5,
-    "cfg_features": ["active_donor", "active_acceptor"],
+    "cfg_features": [
+      "active_donor",
+      "active_acceptor"
+    ],
+    "_cfg_note": "CFG is ON here but is NOT the shipped default: foundry's configs/model/samplers/edm.yaml has use_classifier_free_guidance: False. It is kept on because Butcher et al. 2025 (the RFD3 methods paper, ref [18]) reports an ablation where CFG improves H-bond satisfaction -- small molecules 26.67% -> 32.67% with conditioning -> 36.67% with CFG. Note the DNA effect there is MARGINAL: 11% vs 11.3% vs 12.5%. So this is a deliberate, weakly-supported choice attributable to Butcher et al., not to Sehgal et al. Also note foundry's default cfg_features additionally include ref_atomwise_rasa (and bp_partners in the inference-engine config); we pass only the two H-bond features.",
     "prevalidate_inputs": true,
-    "gpu": "large"
-  }
+    "gpu": "large",
+    "_cfg_features_note": "CORRECTED 2026-08-07. Our VALUE never reaches the sampler -- pecli's rfd3na tool exposes no cfg_features field and the container does not override it -- but the field is NOT unset. It falls back to foundry's own default in models/rfd3na/configs/inference_engine/rfdiffusion3.yaml, which is [active_donor, active_acceptor, ref_atomwise_rasa, bp_partners]. Both H-bond features we wanted ARE guided; two we did not ask for (solvent accessibility and base-pair partners) are guided as well. So the earlier note here -- 'this setting has never reached the sampler' -- was right about our value and WRONG about the effect: H-bond guidance was never absent. Keeping our list is therefore a no-op, and narrowing to only the two H-bond features would require a pecli change."
+  },
+  "_provenance": "CORRECTED 2026-08-05. This file previously claimed 'Values match the paper (Sehgal et al. 2026, Fig. S4f)'. That claim does not hold up and 20 designs were generated under it. A full-text read of Sehgal et al. found that the strings 'cfg', 'cfg_scale', 'cfg_features', 'guidance' and 'classifier-free' DO NOT OCCUR ANYWHERE in the paper, and Fig. S4 is in the supplement, which is unreachable (bioRxiv 403 direct, 429 via text proxy). So none of the CFG settings below are attributable to Sehgal et al. What the paper DOES state for the sampler: one ori token per six consecutive base pairs, placed 3 A toward the major groove from the 6-bp centroid perpendicular to the helical axis; 5100 scaffolds per ori; protein length 120-150; is_non_loopy True; target DNA fixed during diffusion. num_timesteps / step_scale / gamma_0 are pecli+foundry defaults, not paper-stated."
 }

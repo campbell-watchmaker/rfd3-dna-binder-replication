@@ -14,10 +14,14 @@ Fold the DNA-only duplex to B-form. Input already prepared:
 `targets/prnp/prnp_fold_input.json` (both strands, seed 42).
 
 ```bash
-pecli prepare protenix --input targets/prnp/prnp_fold_input.json --seeds 1
+pecli prepare rf3 --input targets/prnp/prnp_fold_input.json --seed 42
 pecli submit <run>
 # → prnp_duplex.cif   (the folded target; feeds every downstream stage)
 ```
+
+> Was `pecli prepare protenix`. Changed to rf3 for consistency with every other fold
+> in the pipeline, and because a **protein-free** protenix fold turns out to be
+> impossible in pecli at all (issue #189) — the DNA-only duplex is exactly that case.
 
 ## Stage 1 — compute conditioning (CPU, here)
 
@@ -47,24 +51,82 @@ python scripts/make_rfd3na_specs.py \
     --out-dir      specs/binder_block/rfd3na_specs
 ```
 
-> **Subset the H-bond conditioning before submit.** The generator emits every
-> candidate major-groove atom. Conditioning on all of them over-constrains
-> diffusion — pick the handful of major-groove acceptors/donors on the
-> poly-purine core you actually want the binder to read (the paper conditions on
-> a selected subset, e.g. the N7/O6 of the central G/A run). Edit the
-> `select_hbond_*` dicts in each spec accordingly. HBPLUS must be installed on
-> the GPU side for H-bond conditioning to work.
+> **H-bond conditioning: sample it, do not fix it.** For a real campaign use
+>
+> ```bash
+> --hbond-sampling random --hbond-strand either --designs-per-ori 5100 --seed 42
+> ```
+>
+> which emits one spec per design with an independently drawn constraint set: base
+> count uniform over `--hbond-bases-min/max` (default 2–5, spanning 4–10 atoms of
+> PRNP's 36), positions uniform without replacement inside that ori's window, strand
+> drawn per design. Every draw is recorded in `manifest.json` under `hbond_draw`, so
+> any design traces back to the exact set that produced it.
+>
+> This is the shape the paper describes — *"we sample a variety of placements of the
+> protein center of mass … and **a diverse set of hydrogen bond (Hbond) condition
+> constraints**"*. **The drawing mechanism is ours**; the paper states the diversity,
+> not the method. Both atoms of a purine are always kept together (G N7+O6, A N7+N6 are
+> the bidentate pairs Arg and Asn form), and terminal base pairs are excluded.
+>
+> `--hbond-sampling fixed` (the default, purine strand + central 3 bases = 6 of 36
+> atoms) is retained so existing arms stay reproducible. It is **not** the paper's
+> shape. Consistent with the measurement that 6 vs 8 atoms was indistinguishable over
+> 100 refolds — the count was not the operative variable, so no fixed count is the fix.
+>
+> HBPLUS must be installed GPU-side for conditioning to work.
+>
+> **Provenance, corrected 2026-08-05.** This note used to say "the paper conditions
+> on a selected subset, e.g. the N7/O6 of the central G/A run". **That is not in the
+> paper.** Its only Methods sentence on the topic is *"Hydrogen bond conditioning was
+> applied during generation on candidate major groove donor and acceptor atoms
+> (Fig. S1)"* — no count, no atom names, no strand; Fig. S1 is in the unreachable
+> supplement. The subsetting rule here is ours.
+>
+> **The paper's actual model is sampling, not a fixed subset.** From Results: *"we
+> sample a variety of placements of the protein center of mass … and **a diverse set
+> of hydrogen bond (Hbond) condition constraints**"*. So a single fixed subset is the
+> wrong shape whatever its size, and the current rule is a stand-in. Consistent with
+> the measurement: 6 vs 8 atoms was indistinguishable over 100 refolds
+> (`scripts/compare_conditioning_arms.py`).
+>
+> Two upstream signals suggest our rule is narrower than practice, both
+> implementation rather than paper: foundry's training subsamples to roughly a third
+> of candidate atoms (~12 for a 36-atom target), and its shipped 14-bp
+> `na_binder_design.json` example specifies 16 atoms across **both** strands, mixing
+> base *and* phosphate/sugar atoms — where we use purine-strand base edges only.
 
 ## Stage 3 — diffuse binders (GPU, pecli, per ori spec)
 
 ```bash
-for spec in specs/binder_block/rfd3na_specs/prnp_binder_ori*.json; do
-    pecli prepare rfd3na --design-inputs "$spec" \
-        --config specs/binder_block/sampler_config.json:_smoke_test
-    pecli submit <run>
-done
+python scripts/submit_arm_diffusion.py \
+    --spec-dir specs/binder_block/rfd3na_specs \
+    --config   specs/binder_block/sampler_config.json \
+    --duplex-cif targets/prnp/prnp_duplex.cif \
+    --group prnp-binder --designs-per-run 10 --max-spend 5.00 --dry-run
+# review, then drop --dry-run
 # → per-design <id>.cif (+ <id>.pdb for protein-containing designs) + <id>.json
 ```
+
+> **Corrected 2026-08-06.** This used to show
+> `pecli prepare rfd3na --design-inputs "$spec" --config sampler_config.json:_smoke_test`.
+> **Neither flag exists** — `pecli prepare` rejects both with
+> `unknown option(s) for rfd3na: config, design_inputs`. The spec goes in via `--input`,
+> and every sampler knob is its own flag (`--diffusion-batch-size`, `--n-batches`,
+> `--use-classifier-free-guidance`, …). The command as written could never have run.
+>
+> It also omitted the **target-CIF staging step**, without which a run starts and dies
+> immediately: the spec references its duplex by container path (`/workspace/…cif`) and
+> `pecli prepare` stages only `config.json` plus the spec. `submit_arm_diffusion.py`
+> drives prepare → stage → submit as one sequence so the staging cannot be skipped (it
+> has been, twice), translates the config JSON into flags, and enforces a spend cap
+> per run rather than only up front.
+>
+> **`cfg_features` is not a real setting.** `sampler_config.json` carries
+> `cfg_features: [active_donor, active_acceptor]` with a paragraph of rationale, but
+> pecli's rfd3na tool exposes no such field (`pecli/tools/rfd3na.py`), so it has never
+> reached the sampler on any run this project has made. The submitter now reports it as
+> skipped rather than passing it and being rejected.
 
 Note the connector chains only the **first** design rfd3na → ligandmpnn; for
 sequence design across *all* backbones, run ligandmpnn per design PDB (Stage 5).
@@ -86,43 +148,74 @@ done
 for pdb in <relaxed>/*_relaxed.pdb; do
     pecli prepare ligandmpnn --input "$pdb" \
         --config specs/binder_block/ligandmpnn_config.json
-    # set chains_to_design to the designed protein chain (not the DNA chains)
     pecli submit <run>
 done
-# → FASTA of 5 sequences/backbone with overall_confidence / ligand_confidence
+# → <backbone>.fa per backbone: the WT input record, then 5 designs
 ```
 
-## Stage 6 — refold + validate, THREE oracles (GPU, pecli)
+`chains_to_design` is now set to `C` in the config, **read off a real relaxed
+backbone**: rfd3na emits the fixed duplex first, so its output is DNA A + DNA B +
+protein C. Note this is the *opposite* of the refold layout below (protein A + DNA
+B,C) — that mismatch is what caused the Stage 7 RMSD bug where protein Cα found zero
+overlap and the DNA aligned on the wrong strand.
 
-Build per-design complex inputs (protein sequence + both DNA strands) and fold
-with each oracle for the comparison (see `fold_config.json`):
+## Stage 6 — refold + validate on rf3 (GPU, pecli)
+
+Build per-design complex inputs (protein sequence + both DNA strands) and fold:
 
 ```bash
 python scripts/build_fold_inputs.py \
-    --fasta <ligandmpnn output>.fasta \
+    --ligandmpnn-dir <ligandmpnn raw dir> \
     --dna TGAGGAGAGGAG \
-    --out-dir specs/binder_block/fold_inputs
-for oracle in protenix openfold3 esmfold2; do
-    for cj in specs/binder_block/fold_inputs/*.json; do
-        pecli prepare $oracle --input "$cj"
-        pecli submit <run>
-    done
+    --out-dir folds/refold                # + folds_manifest.json
+for cj in folds/refold/*.json; do
+    [ "$(basename "$cj")" = folds_manifest.json ] && continue
+    pecli prepare rf3 --input "$cj" --diffusion-batch-size 1 --seed 42
+    pecli submit <run>
 done
 ```
+
+`--ligandmpnn-dir` reads the `.fa` files directly and drops LigandMPNN's WT input
+record by its **missing `id=`** rather than by position (dropping record 0 blindly
+deletes a real design from any already-filtered FASTA). No template here,
+deliberately: the gate below asks whether the designed sequence *independently* folds
+back into its backbone, and a template hands it the answer.
+
+**Oracle: rf3, settled empirically** — 4/5 argmin on the natural-TF control panel vs
+protenix 2/5 and openfold3 0/5, at $0.020/fold (~2× cheaper than protenix, ~14×
+cheaper than openfold3). See `analysis/oracle_controls/RESULTS.md`. esmfold2 ties rf3
+on discrimination and is better calibrated but costs 10×, so it is the spot-check
+oracle for top-ranked designs, not the panel-wide one.
+
+**Cost lever at scale:** `--top-n-per-backbone 1` folds one sequence per backbone
+instead of five. Refolding is 89% of a backbone's $0.112 cost, and the smoke test
+measured per-backbone spread in major-groove H-bonds far exceeding within-backbone
+spread (`[0,1,0,0,0]` vs `[13,0,13,0,7]`), i.e. backbone quality dominates sequence
+choice. Record it as a deviation — the paper folds 5/backbone at this gate.
 
 ## Stage 7 — filter + rank (CPU, here)
 
 ```bash
+python scripts/build_filter_manifest.py \
+    --refold-manifest folds/refold/folds_manifest.json \
+    --relaxed-dir relaxed --raw-dir raw/stage6 \
+    --out filter_manifest.json
 python scripts/filter_binder_block.py \
-    --designs <refolded cifs, tagged by oracle> \
-    --target-dna TGAGGAGAGGAG \
-    --out results/binder_block/passers.csv \
-    --oracle-comparison results/binder_block/oracle_comparison.csv
+    --manifest filter_manifest.json \
+    --stage pre_resample \
+    --out results/binder_block/passers_pre_resample.csv \
+    --oracle-comparison results/binder_block/all_designs.csv
 ```
 
-Gates (paper): DNA-aligned protein Cα-RMSD < 8 Å → resample → **< 3 Å, ipTM >
-0.7**, high H-bond counts. The oracle-comparison CSV records RMSD/ipTM/H-bonds
-**and** runtime per oracle for the protenix-vs-openfold3-vs-esmfold2 writeup.
+Gates (paper): DNA-aligned protein Cα-RMSD < 8 Å → LigandMPNN resample → **< 3 Å,
+ipTM > 0.7**, high H-bond counts. `--stage` selects which: `pre_resample` uses 8 Å and
+**no ipTM gate**, `post_resample` uses 3 Å + ipTM. Passing `--iptm-gate` at
+`pre_resample` silently does nothing.
+
+The comparison CSV also carries **`min_pae`**, read from each refold's
+`*_confidences.json`, which is what the specificity block's entry gate needs; add
+`--min-pae-gate 6.6` to apply it here (that cut is recalibrated for rf3 — see
+`specs/specificity_block/PIPELINE.md` Stage 0, *not* the paper's 1.25).
 
 ## Hand-off convention
 

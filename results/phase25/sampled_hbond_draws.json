@@ -1,0 +1,368 @@
+{
+  "design_name": "p25smp",
+  "protein_len": "120-150",
+  "duplex_cif": "/workspace/prnp_duplex.cif",
+  "hbond_sampling": "random",
+  "hbond_seed": 2025,
+  "n_specs": 10,
+  "specs": [
+    {
+      "spec": "p25smp_ori1_h1.json",
+      "design_name": "p25smp_ori1_h1",
+      "ori_index": 1,
+      "ori_bp_range": [
+        1,
+        6
+      ],
+      "ori_token": [
+        5.974,
+        -10.494,
+        -2.931
+      ],
+      "hbond_draw": {
+        "mode": "random",
+        "strands": [
+          "A"
+        ],
+        "n_bases_drawn": 5,
+        "n_bases_available": 5,
+        "base_positions": [
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "n_atoms": 10,
+        "atoms": [
+          "A2:N7",
+          "A2:O6",
+          "A3:N6",
+          "A3:N7",
+          "A4:N7",
+          "A4:O6",
+          "A5:N7",
+          "A5:O6",
+          "A6:N6",
+          "A6:N7"
+        ]
+      }
+    },
+    {
+      "spec": "p25smp_ori1_h2.json",
+      "design_name": "p25smp_ori1_h2",
+      "ori_index": 1,
+      "ori_bp_range": [
+        1,
+        6
+      ],
+      "ori_token": [
+        5.974,
+        -10.494,
+        -2.931
+      ],
+      "hbond_draw": {
+        "mode": "random",
+        "strands": [
+          "A"
+        ],
+        "n_bases_drawn": 5,
+        "n_bases_available": 5,
+        "base_positions": [
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "n_atoms": 10,
+        "atoms": [
+          "A2:N7",
+          "A2:O6",
+          "A3:N6",
+          "A3:N7",
+          "A4:N7",
+          "A4:O6",
+          "A5:N7",
+          "A5:O6",
+          "A6:N6",
+          "A6:N7"
+        ]
+      }
+    },
+    {
+      "spec": "p25smp_ori1_h3.json",
+      "design_name": "p25smp_ori1_h3",
+      "ori_index": 1,
+      "ori_bp_range": [
+        1,
+        6
+      ],
+      "ori_token": [
+        5.974,
+        -10.494,
+        -2.931
+      ],
+      "hbond_draw": {
+        "mode": "random",
+        "strands": [
+          "B"
+        ],
+        "n_bases_drawn": 2,
+        "n_bases_available": 5,
+        "base_positions": [
+          2,
+          5
+        ],
+        "n_atoms": 2,
+        "atoms": [
+          "B2:O4",
+          "B5:O4"
+        ]
+      }
+    },
+    {
+      "spec": "p25smp_ori1_h4.json",
+      "design_name": "p25smp_ori1_h4",
+      "ori_index": 1,
+      "ori_bp_range": [
+        1,
+        6
+      ],
+      "ori_token": [
+        5.974,
+        -10.494,
+        -2.931
+      ],
+      "hbond_draw": {
+        "mode": "random",
+        "strands": [
+          "A"
+        ],
+        "n_bases_drawn": 2,
+        "n_bases_available": 5,
+        "base_positions": [
+          3,
+          6
+        ],
+        "n_atoms": 4,
+        "atoms": [
+          "A3:N6",
+          "A3:N7",
+          "A6:N6",
+          "A6:N7"
+        ]
+      }
+    },
+    {
+      "spec": "p25smp_ori1_h5.json",
+      "design_name": "p25smp_ori1_h5",
+      "ori_index": 1,
+      "ori_bp_range": [
+        1,
+        6
+      ],
+      "ori_token": [
+        5.974,
+        -10.494,
+        -2.931
+      ],
+      "hbond_draw": {
+        "mode": "random",
+        "strands": [
+          "A"
+        ],
+        "n_bases_drawn": 3,
+        "n_bases_available": 5,
+        "base_positions": [
+          3,
+          5,
+          6
+        ],
+        "n_atoms": 6,
+        "atoms": [
+          "A3:N6",
+          "A3:N7",
+          "A5:N7",
+          "A5:O6",
+          "A6:N6",
+          "A6:N7"
+        ]
+      }
+    },
+    {
+      "spec": "p25smp_ori2_h1.json",
+      "design_name": "p25smp_ori2_h1",
+      "ori_index": 2,
+      "ori_bp_range": [
+        7,
+        12
+      ],
+      "ori_token": [
+        -4.07,
+        6.454,
+        3.244
+      ],
+      "hbond_draw": {
+        "mode": "random",
+        "strands": [
+          "A"
+        ],
+        "n_bases_drawn": 2,
+        "n_bases_available": 5,
+        "base_positions": [
+          8,
+          11
+        ],
+        "n_atoms": 4,
+        "atoms": [
+          "A11:N6",
+          "A11:N7",
+          "A8:N6",
+          "A8:N7"
+        ]
+      }
+    },
+    {
+      "spec": "p25smp_ori2_h2.json",
+      "design_name": "p25smp_ori2_h2",
+      "ori_index": 2,
+      "ori_bp_range": [
+        7,
+        12
+      ],
+      "ori_token": [
+        -4.07,
+        6.454,
+        3.244
+      ],
+      "hbond_draw": {
+        "mode": "random",
+        "strands": [
+          "A"
+        ],
+        "n_bases_drawn": 2,
+        "n_bases_available": 5,
+        "base_positions": [
+          7,
+          8
+        ],
+        "n_atoms": 4,
+        "atoms": [
+          "A7:N7",
+          "A7:O6",
+          "A8:N6",
+          "A8:N7"
+        ]
+      }
+    },
+    {
+      "spec": "p25smp_ori2_h3.json",
+      "design_name": "p25smp_ori2_h3",
+      "ori_index": 2,
+      "ori_bp_range": [
+        7,
+        12
+      ],
+      "ori_token": [
+        -4.07,
+        6.454,
+        3.244
+      ],
+      "hbond_draw": {
+        "mode": "random",
+        "strands": [
+          "A"
+        ],
+        "n_bases_drawn": 3,
+        "n_bases_available": 5,
+        "base_positions": [
+          7,
+          9,
+          11
+        ],
+        "n_atoms": 6,
+        "atoms": [
+          "A11:N6",
+          "A11:N7",
+          "A7:N7",
+          "A7:O6",
+          "A9:N7",
+          "A9:O6"
+        ]
+      }
+    },
+    {
+      "spec": "p25smp_ori2_h4.json",
+      "design_name": "p25smp_ori2_h4",
+      "ori_index": 2,
+      "ori_bp_range": [
+        7,
+        12
+      ],
+      "ori_token": [
+        -4.07,
+        6.454,
+        3.244
+      ],
+      "hbond_draw": {
+        "mode": "random",
+        "strands": [
+          "B"
+        ],
+        "n_bases_drawn": 4,
+        "n_bases_available": 5,
+        "base_positions": [
+          8,
+          9,
+          10,
+          11
+        ],
+        "n_atoms": 4,
+        "atoms": [
+          "B10:O4",
+          "B11:N4",
+          "B8:N4",
+          "B9:N4"
+        ]
+      }
+    },
+    {
+      "spec": "p25smp_ori2_h5.json",
+      "design_name": "p25smp_ori2_h5",
+      "ori_index": 2,
+      "ori_bp_range": [
+        7,
+        12
+      ],
+      "ori_token": [
+        -4.07,
+        6.454,
+        3.244
+      ],
+      "hbond_draw": {
+        "mode": "random",
+        "strands": [
+          "B"
+        ],
+        "n_bases_drawn": 5,
+        "n_bases_available": 5,
+        "base_positions": [
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "n_atoms": 5,
+        "atoms": [
+          "B10:O4",
+          "B11:N4",
+          "B7:O4",
+          "B8:N4",
+          "B9:N4"
+        ]
+      }
+    }
+  ]
+}

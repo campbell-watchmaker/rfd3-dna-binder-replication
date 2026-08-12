@@ -42,6 +42,36 @@ RUN_ID_RE = re.compile(r"(?:Prepared|prepared)\s+\S+\s+(?:run|pipeline)\s+([0-9a
 STAGING_RE = re.compile(r"(/\S*?/\.pecli/staging/[^\s/]+)/?")
 HERE = os.path.dirname(os.path.abspath(__file__))
 
+# The manifest's label for "which protein is this row". The control panel calls it
+# `protein`; the specificity block's build_allbyall_inputs.py calls it `design_id`.
+# This script previously hardcoded `protein`, so pointing it at a specificity manifest
+# raised KeyError on the first record.
+LABEL_FIELDS = ("protein", "design_id")
+
+
+def _label(rec):
+    for f in LABEL_FIELDS:
+        if rec.get(f):
+            return rec[f]
+    raise KeyError(f"manifest record {rec.get('fold_id')!r} has none of {LABEL_FIELDS}")
+
+
+def _template_cif(rec, template_dir):
+    """Prefer the manifest's recorded template path over reconstructing the filename.
+
+    build_allbyall_inputs.py already records `template_cif`, and it is the path it
+    actually checked for existence -- reconstructing `<label>_template.cif` guesses at a
+    naming convention the emitter is free to change.
+    """
+    rec_path = rec.get("template_cif")
+    if rec_path and os.path.isfile(rec_path):
+        return rec_path
+    cand = os.path.join(os.path.abspath(template_dir), f"{_label(rec)}_template.cif")
+    if rec_path and not os.path.isfile(cand):
+        # surface the manifest's path in the error, not just the guessed one
+        return rec_path
+    return cand
+
 
 def run(cmd, timeout=900):
     p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -57,10 +87,16 @@ def main():
     ap.add_argument("--template-dir", required=True, help="predicted protein-only CIFs")
     ap.add_argument("--unit-cost", type=float, required=True)
     ap.add_argument("--max-spend", type=float, required=True)
-    ap.add_argument("--group", default="oracle-controls-templated")
+    ap.add_argument("--group", default="oracle-controls-templated",
+                    help="pecli run group. Set this per campaign -- the default is the "
+                         "control panel's, and reusing it for the specificity block would "
+                         "mix two campaigns' runs in one group.")
+    ap.add_argument("--description", default=None,
+                    help="pecli run description template; '{fold_id}' is substituted. "
+                         "Defaults to the oracle-controls wording.")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--proteins", default=None,
-                    help="comma-separated control labels to restrict to, e.g. "
+                    help="comma-separated design/control labels to restrict to, e.g. "
                          "'LambdaRep,Engrailed'. Keeps each protein's WHOLE 8-target row, "
                          "which is required for ΔminPAE and argmin to be computable -- "
                          "on-target folds alone would only show the absolute-minPAE move and "
@@ -72,11 +108,12 @@ def main():
     pending = [m for m in manifest if not m.get("run_id")]
     if args.proteins:
         want = {p.strip() for p in args.proteins.split(",") if p.strip()}
-        unknown = want - {m["protein"] for m in manifest}
+        unknown = want - {_label(m) for m in manifest}
         if unknown:
             print(f"unknown protein label(s): {sorted(unknown)}")
+            print(f"  known: {sorted({_label(m) for m in manifest})}")
             return 1
-        pending = [m for m in pending if m["protein"] in want]
+        pending = [m for m in pending if _label(m) in want]
         print(f"restricted to {sorted(want)}: {len(pending)} folds")
     if args.limit:
         pending = pending[:args.limit]
@@ -89,6 +126,9 @@ def main():
         print(f"  projected exceeds cap -- submitting at most {n_ok}")
         pending = pending[:n_ok]
 
+    desc_tmpl = args.description or \
+        "oracle-controls TEMPLATED {fold_id} (rf3, MSA-free, protein templated)"
+
     spent, submitted, failed = 0.0, 0, []
     for i, rec in enumerate(pending, 1):
         if spent + args.unit_cost > args.max_spend:
@@ -97,8 +137,7 @@ def main():
         fid = rec["fold_id"]
         untmpl = os.path.join(os.path.abspath(args.untemplated_dir), f"{fid}.json")
         tmpl = os.path.join(os.path.abspath(args.templated_dir), rec["fold_input"])
-        cif = os.path.join(os.path.abspath(args.template_dir),
-                           f"{rec['protein']}_template.cif")
+        cif = _template_cif(rec, args.template_dir)
         for p in (untmpl, tmpl, cif):
             if not os.path.isfile(p):
                 failed.append((fid, f"missing {p}"))
@@ -107,8 +146,7 @@ def main():
             # 1. prepare the UNTEMPLATED input -> guaranteed bare run
             rc, out = run(["pecli", "prepare", "rf3", "--input", untmpl,
                            "--diffusion-batch-size", "1", "--seed", "42",
-                           "--description",
-                           f"oracle-controls TEMPLATED {fid} (rf3, MSA-free, protein templated)"])
+                           "--description", desc_tmpl.format(fold_id=fid)])
             m, s = RUN_ID_RE.search(out), STAGING_RE.search(out)
             if rc != 0 or not m or not s:
                 failed.append((fid, "prepare: " + out.strip()[-250:]))

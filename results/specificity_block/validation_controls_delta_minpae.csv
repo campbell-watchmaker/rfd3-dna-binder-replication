@@ -1,0 +1,6 @@
+design_id,oracle,delta_min_pae,on_target_min_pae,best_offtarget_min_pae,min_sbs_min_pae,min_decoy_min_pae,n_offtargets
+LambdaRep,rf3,1.93,3.87,5.8,,5.8,7
+MAX_bHLH,rf3,1.83,2.15,3.98,,3.98,7
+Zif268,rf3,1.6,1.07,2.67,,2.67,7
+Engrailed,rf3,0.26,3.88,4.14,,4.14,7
+TBP,rf3,-2.16,15.73,13.57,,13.57,7

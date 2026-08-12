@@ -1,24 +1,36 @@
 {
-  "_comment": "Templated all-by-all fold config for the specificity block. Each specificity-resampled design is folded against the on-target DNA AND every off-target DNA (single-base variants + decoys), then ranked by ΔminPAE. This REQUIRES a PAE matrix.",
+  "_comment": "Templated all-by-all fold config for the specificity block. Each specificity-resampled design is folded against the on-target DNA AND every off-target DNA, then ranked by ΔminPAE. This REQUIRES a PAE matrix.",
 
-  "_oracle_constraint": "PAE-emitting AF3-class folders ONLY -- protenix or openfold3. esmfold2 does NOT emit a PAE matrix, so it CANNOT be used for the specificity block (this differs from the binder block's three-oracle comparison, which only needs RMSD/ipTM). Pick protenix as primary (closest to the paper's AF3); openfold3 as cross-check.",
+  "_oracle_rationale": "rf3, settled EMPIRICALLY on a 4-oracle natural-TF control panel (analysis/oracle_controls/RESULTS.md), replacing an earlier a-priori choice of protenix. On argmin (does the on-target win?) rf3 scored 4/5 vs protenix 2/5 vs openfold3 0/5, and protenix's binder/non-binder minPAE ranges actually OVERLAP. rf3 is also ~2x cheaper than protenix and ~14x cheaper than openfold3, at $0.020/fold measured. esmfold2 emits no PAE and cannot be used here at all (it ties rf3 on discrimination and is better calibrated, but costs 10x -- it is the independent spot-check oracle, not the ranking one).",
 
-  "oracle": "protenix",
+  "oracle": "rf3",
   "seeds": 1,
-  "gpu": "large",
+  "msa_free": true,
+  "_msa_free": "Single-sequence a3m via the _pecli_rf3_msa_a3m carrier. Both scientific (designs have no meaningful alignment, so giving the metric an MSA would make the controls easier than the real task) and financial (omitting any MSA makes pecli auto-route to a PAID msa->rf3 pipeline; pecli issue #174).",
 
-  "_templated_note": "The paper uses TEMPLATED all-by-all folding: the on-target-designed protein-DNA complex serves as a structural template so each off-target fold is evaluated on the same binding pose rather than folded de novo. In pecli this is the fold tool's template input; supply the on-target complex CIF as the template for every off-target fold of that design. Confirm the exact template-input field against the pecli protenix/openfold3 guide at submit time.",
+  "templated": true,
+  "_templated": "The paper templates in exactly one place: 'Templates were not used throughout the design campaign with the exception of the all-by-all folding step in the specificity block ... the most recent AF3 prediction before the all-by-all folding was used as the template for the protein chain.' PROTEIN ONLY -- templating the duplex would hand the fold the protein-DNA docking geometry it is supposed to predict. Measured on the control panel: ΔminPAE rose (LambdaRep +1.93 -> +3.43, Engrailed +0.26 -> +0.72) with argmin holding 3/3 and every on-target interface still inside the motif window, i.e. ranking quality without buying it by making everything look confident. A templated rf3 input cannot be `pecli prepare`d directly -- see analysis/oracle_controls/submit_templated_folds.py for the prepare-untemplated-then-swap flow.",
 
-  "filters": {
-    "_comment": "Specificity-block acceptance gates (paper): tighter than the binder block.",
+  "panel": "ranking",
+  "_panel": "on-target + the other Table 1 targets, padded to a common length. NOT the single-base-variant sweep: ΔminPAE is a MINIMUM over off-targets, so ranking on sequences one base from the on-target turns it into a near-worst-case statistic, and it inflates the all-by-all ~4x. The paper's '35/40 single-base variants' is wet-lab characterisation of one already-selected binder.",
+
+  "entry_gate": {
+    "_comment": "Which binder-block passers enter the specificity block.",
+    "min_pae_max": 6.6,
+    "_min_pae_max": "RECALIBRATED, and the derivation is in docs/replication_log.md -- this is NOT the paper's number. The paper gates at minPAE < 1.25, measured on AF3. On rf3 that threshold admits almost nobody: of five real, crystallographically-characterised TFs folded against their own cognate sites, only 1/5 clears 1.25. The offset is rf3 calibration, not a modelling error -- it survived adding MSAs (-0.11 A), 5x sampling (~0) and templating (-0.93 to +0.11 A). Measured rf3 on-target minPAE: specific TFs 1.07-3.88 A, non-specific binder (Sac7d) 6.60 A, non-binders (Ubiquitin/GFP) 15.7-16.2 A. A cut at 6.6 A separates binders from non-binders on measured data. Provisional: it rests on 5 proteins.",
     "dna_aligned_ca_rmsd_max": 1.5,
     "iptm_min": 0.9,
-    "_then": "rank surviving designs by ΔminPAE descending, take top 96 per target"
+    "_gates": "RMSD/ipTM are the paper's post-resample specificity-block gates, unchanged."
+  },
+
+  "success_criterion": {
+    "delta_min_pae_min": 0.0,
+    "_comment": "ΔminPAE > 0 -- the paper's own calibration-free enrichment criterion, and the one control-panel result that DID transfer to rf3 (4/5 specific TFs). Deliberately not an absolute threshold: absolute rf3 minPAE is offset from AF3's, so any absolute cut would have to be re-derived, whereas a sign test does not.",
+    "rank": "descending",
+    "top_n_per_target": 96
   },
 
   "delta_minpae": {
-    "definition": "min over off-targets of (minPAE_off - minPAE_on); minPAE = min over protein-residue x DNA-residue pairs of PAE(i,j)",
-    "rank": "descending",
-    "top_n_per_target": 96
+    "definition": "min over off-targets of (minPAE_off - minPAE_on); minPAE = min over protein-residue x DNA-residue pairs of PAE(i,j)"
   }
 }

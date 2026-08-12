@@ -1,0 +1,25 @@
+{
+  "prnp_binder_ori2": {
+    "input": "/workspace/prnp_duplex.cif",
+    "contig": "A1-12,/0,B1-12,/0,120-150",
+    "length": "120-150",
+    "select_fixed_atoms": {
+      "A1-12": "ALL",
+      "B1-12": "ALL"
+    },
+    "ori_token": [
+      -4.07,
+      6.454,
+      3.244
+    ],
+    "is_non_loopy": true,
+    "select_hbond_acceptor": {
+      "A8": "N7",
+      "A9": "N7,O6",
+      "A10": "N7,O6"
+    },
+    "select_hbond_donor": {
+      "A8": "N6"
+    }
+  }
+}

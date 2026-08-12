@@ -101,6 +101,35 @@ def protein_dna_token_masks(n_tokens, chains, protein_chain, dna_chains, protein
     return prot, dna
 
 
+def _protein_len_range(rec):
+    """Normalise `protein_len` to the (lo, hi) token range the mask fallback wants.
+
+    Two conventions exist in this repo for a field of the same name, and reconciling
+    them here rather than in the emitters is deliberate -- the scalar form is the
+    majority (compute_control_metrics.py, build_control_folds.py,
+    build_allbyall_inputs.py all treat it as a residue COUNT):
+
+      scalar 123      -> (0, 123)      one protein chain, tokens first
+      pair [0, 123]   -> (0, 123)      an explicit range, passed through
+
+    This used to be `tuple(j["protein_len"])`, which raised
+    `TypeError: 'int' object is not iterable` on every real manifest. Because Python
+    evaluates call arguments eagerly it fired even when chain labels were present and
+    the range was never consulted, so it was an unconditional crash rather than a
+    fallback-path bug. It went unnoticed because every test hand-built a manifest that
+    omitted the field entirely.
+    """
+    v = rec.get("protein_len")
+    if v is None:
+        return (0, 0)
+    if isinstance(v, (list, tuple)):
+        if len(v) != 2:
+            raise ValueError(f"protein_len as a sequence must be [lo, hi], got {v!r}")
+        return (int(v[0]), int(v[1]))
+    n = int(v) * int(rec.get("protein_copies", 1))
+    return (0, n)
+
+
 def min_pae(pae, prot_mask, dna_mask):
     """min over protein-DNA residue pairs of PAE(i,j), using both PAE orientations."""
     block1 = pae[np.ix_(prot_mask, dna_mask)]
@@ -127,18 +156,32 @@ def main():
     jobs = json.load(open(args.manifest))
 
     # minPAE per (design, dna, oracle)
-    rows = []
+    rows, skipped = [], []
     for j in jobs:
-        pae, chains = load_pae(j["pae_path"])
-        prot_mask, dna_mask = protein_dna_token_masks(
-            pae.shape[0], chains,
-            j.get("protein_chain", "A"), j.get("dna_chains", ["B", "C"]),
-            tuple(j["protein_len"]) if j.get("protein_len") else (0, 0),
-            [tuple(r) for r in j.get("dna_ranges", [])],
-        )
-        mp = min_pae(pae, prot_mask, dna_mask)
+        path = j.get("pae_path")
+        if not path or path == "FILL_AFTER_FOLD" or not os.path.exists(path):
+            skipped.append((j.get("design_id"), j.get("dna_id"), "no PAE on disk"))
+            continue
+        try:
+            pae, chains = load_pae(path)
+            prot_mask, dna_mask = protein_dna_token_masks(
+                pae.shape[0], chains,
+                j.get("protein_chain", "A"), j.get("dna_chains", ["B", "C"]),
+                _protein_len_range(j), [tuple(r) for r in j.get("dna_ranges", [])],
+            )
+            mp = min_pae(pae, prot_mask, dna_mask)
+        except Exception as e:
+            skipped.append((j.get("design_id"), j.get("dna_id"), str(e)))
+            continue
         rows.append({"design_id": j["design_id"], "dna_id": j["dna_id"],
                      "kind": j["kind"], "oracle": j.get("oracle", "unknown"), "min_pae": round(mp, 4)})
+
+    if skipped:
+        print(f"WARNING: {len(skipped)} of {len(jobs)} folds produced no minPAE:")
+        for did, dna, why in skipped[:10]:
+            print(f"  ! {did} x {dna}: {why}")
+        if len(skipped) > 10:
+            print(f"  ... and {len(skipped) - 10} more")
 
     if args.per_complex_out:
         with open(args.per_complex_out, "w", newline="") as f:
@@ -151,13 +194,24 @@ def main():
     for r in rows:
         by_design[(r["design_id"], r["oracle"])][r["dna_id"]] = (r["kind"], r["min_pae"])
 
-    out_rows = []
+    out_rows, unrankable = [], []
     for (design, oracle), d in by_design.items():
         on = [v for v in d.values() if v[0] == "on_target"]
         offs = [v[1] for v in d.values() if v[0] in ("sbs", "decoy")]
+        # A design missing its on-target fold, or with no off-targets collected, cannot
+        # be ranked. This used to `continue` silently, so a partially drained batch
+        # produced a shorter CSV that looked entirely credible -- the most dangerous
+        # failure mode in the block, because nothing downstream can tell a design that
+        # ranked badly from one that was never scored. Report them instead.
         if not on or not offs:
+            unrankable.append((design, oracle,
+                               "no on-target fold" if not on else "no off-target folds",
+                               len(d)))
             continue
-        on_mp = on[0][1]
+        if len(on) > 1:
+            print(f"WARNING: {design} ({oracle}) has {len(on)} on-target rows; "
+                  "using the lowest. Expected exactly one -- check for duplicate seeds.")
+        on_mp = min(v[1] for v in on)
         best_off = min(offs)                     # most competitive off-target
         delta = best_off - on_mp                 # >0 = on-target preferred
         # also report separated sbs / decoy worst cases
@@ -183,9 +237,22 @@ def main():
 
     print(f"{len(rows)} (design,dna,oracle) complexes -> minPAE")
     print(f"{len(out_rows)} (design,oracle) ranked by ΔminPAE -> {args.out}")
+    if unrankable:
+        print(f"UNRANKABLE: {len(unrankable)} (design,oracle) pair(s) had folds but could "
+              "not be ranked -- these are ABSENT from the CSV above, so do not read the "
+              "row count as the design count:")
+        for design, oracle, why, n in unrankable[:10]:
+            print(f"  ! {design} ({oracle}): {why} ({n} fold(s) present)")
+        if len(unrankable) > 10:
+            print(f"  ... and {len(unrankable) - 10} more")
     if out_rows:
         top = out_rows[0]
         print(f"top: {top['design_id']} ({top['oracle']}) ΔminPAE={top['delta_min_pae']}")
+    n_pos = sum(1 for r in out_rows if r["delta_min_pae"] > 0)
+    if out_rows:
+        # the paper's calibration-free criterion: it reports ΔminPAE > 0 as the constraint
+        # that "enriched for successful designs experimentally"
+        print(f"ΔminPAE > 0 (the paper's enrichment criterion): {n_pos}/{len(out_rows)}")
 
 
 if __name__ == "__main__":

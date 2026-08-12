@@ -1,0 +1,2 @@
+design_id,oracle,dna_aligned_ca_rmsd,protein_only_ca_rmsd,iptm,protein_dna_hbonds,major_groove_hbonds,n_ca_matched,error,runtime_s,gpu
+ori2_ori2_0_4_s1,rf3,4.533,2.6,0.58782559633255,14,2,126,,,
