@@ -110,7 +110,8 @@ assumed. Findings that shaped the spec generator (`scripts/make_rfd3na_specs.py`
   12-bp PRNP target) + a manifest.
 - H-bond conditioning uses two `InputSelection` dicts — `select_hbond_donor` /
   `select_hbond_acceptor` — keyed by DNA residue id (`"A6"`, `"B13-24"`) with
-  comma-joined atom-name strings (`"N7,O6"`). Requires **HBPLUS** installed GPU-side.
+  comma-joined atom-name strings (`"N7,O6"`). **HBPLUS is not required** for this —
+  see "HBPLUS is not on the inference path" below.
 - DNA is fixed via `select_fixed_atoms: {"<dna range>": "ALL"}`; `contig` lists the
   fixed DNA chains + the designed protein length via the InputSelection mini-language.
 - CFG: `use_classifier_free_guidance` + `cfg_features` (subset of `active_donor`,
@@ -765,3 +766,145 @@ H-bond constraints; CFG amplifies exactly that. `cfg_scale=1.0` is a no-op, ours
 **Cost: two forward passes per step**, so CFG roughly doubles diffusion GPU time. Our own
 arms found no resolvable difference between on and off, and foundry ships it `False`;
 kept on as a mechanistic choice, recorded as such.
+
+## HBPLUS is not on the inference path — the conditioning was delivered (2026-09-02)
+
+Phase 2.5's null result prompted the hypothesis that H-bond conditioning never reached
+the sampler, since `make_rfd3na_specs.py`, `specs/binder_block/PIPELINE.md` and this log
+all asserted that **"HBPLUS must be installed GPU-side for conditioning to work."**
+
+**That claim was ours and it is wrong.** Traced through the rfd3na source
+(`~/WMG_repos/foundry/models/rfd3na`), the inference conditioning path is complete and
+never touches HBPLUS:
+
+| step | location |
+|---|---|
+| `select_hbond_donor` / `select_hbond_acceptor` → `active_donor` / `active_acceptor` annotations | `inference/input_parsing.py:441-442` |
+| annotations → `data["feats"]["active_donor"/"active_acceptor"]` tensors | `transforms/design_transforms.py:381-395` |
+| features → model embedding (dim 1 each) | `configs/model/components/rfd3_net.yaml:44-45` |
+| features listed as CFG-strippable | `configs/inference_engine/rfdiffusion3.yaml:28-29` |
+
+HBPLUS appears only in `transforms/hbonds_hbplus.py`, `metrics/hbonds_hbplus_metrics.py`
+and `trainer/rfd3na.py`. Its one pipeline use, `CalculateHbondsPlus`, is wrapped in
+`TrainingConditionRoute("calculate_hbonds")` — training only. `transforms/hbonds.py`'s
+`CalculateHbonds`, which *would* overwrite `active_donor`/`active_acceptor`, is defined
+but referenced by no pipeline. Foundry's own NA-binder example says the install is needed
+"to enable hydrogen bond **metrics** computation" and "to run this without warnings".
+
+**Silent constraint-dropping is also ruled out.** `canonicalize_` keeps dict values as
+comma-joined strings and `foundry/utils/components.py:get_name_mask` splits them on `","`
+— then **raises** `ComponentValidationError("Could not find requested atoms ...")` if a
+name is absent, and warns if only some match. A mistyped atom name fails loudly. Our
+24/24 diffusion runs succeeded, so the selections resolved.
+
+### What this means
+
+The constraints reached the model. So the measured response below is the model's actual
+behaviour under our design regime, not a plumbing failure:
+
+| measurement (sampled arms, 38 designs, 216 requested atoms) | value |
+|---|---|
+| requested H-bond atoms contacted in the design | 23/216 = **10.6%** |
+| non-requested candidate major-groove atoms contacted | 96/1152 = **8.3%** (chance baseline) |
+| enrichment | **1.28×** |
+| designs contacting zero of their requested atoms | 24/38 (63%) |
+| designs contacting all of their requested atoms | 0/38 |
+
+Design-side interface quality, never previously measured — `analyze_one()` calls
+`count_protein_dna_hbonds(refold)`, so every H-bond number reported before now described
+the refold, not the rfd3na output:
+
+| | total protein–DNA contacts | major-groove H-bonds | protein COM → nearest DNA |
+|---|---|---|---|
+| design (rfd3na, n=78) | 17 [4–37] | **1** [0–8] | 2.2 Å |
+| refold (rf3, n=120) | 19 [5–55] | **2** [0–11] | 5.4 Å |
+
+Median [min–max]. Designs with ≥3 major-groove H-bonds 24/78; refolds 44/120. The refold
+has *more* base contacts than the design, so refolding is not destroying an interface —
+the designs grip the backbone (17 contacts, 1 in the major groove) rather than reading
+bases, and that is true before sequence design.
+
+### Hypotheses eliminated so far
+
+| suspect | measurement | verdict |
+|---|---|---|
+| relax moves the DNA off the conditioned geometry | design duplex vs target duplex: **0.48 Å** median (max 0.55) | eliminated |
+| rfd3na ignores the ori token | \|protein COM − requested ori_xyz\|: **4.7 Å** median, 99% <10 Å | eliminated — it complies |
+| our 3 Å ori offset is physically impossible | 6 control cocrystals span **1.4–30.8 Å** COM-to-axis (Zif268 3.2, engrailed 1.4) | not supported; ours is inside the real range, at the wrapping end |
+| H-bond conditioning never reached the sampler (HBPLUS) | source trace above | eliminated |
+
+The DNA-aligned RMSD of ~31 Å is design-vs-refold *disagreement*, not distance from the
+duplex: refolded proteins still sit on the DNA (COM 5.4 Å from nearest atom).
+
+**Not yet tested:** whether `dna_aligned_ca_rmsd` returns a sane number on a pair with a
+known answer. It reconciles two opposite chain layouts (rfd3na DNA A,B + protein C; rf3
+protein A + DNA B,C) by pairing strands on base sequence, and has never been run against
+a real protein-DNA cocrystal and its own untemplated refold (~$0.10, 5 folds).
+
+## The RMSD metric works — but rf3 fails to place 2 of 5 real cocrystals (2026-09-02)
+
+`dna_aligned_ca_rmsd` had never been run on a pair with a known answer, so every "0/80"
+and "~31 Å" number rested on an unvalidated measurement. Two tests, one free and one $0.10.
+
+### Self-consistency (free, `scripts/validate_rmsd_metric.py` sibling tests)
+
+| test | result | expected |
+|---|---|---|
+| `metric(s, s)` | **0.000 Å** | 0 |
+| whole complex rigidly moved 30 Å + rotated | **0.000 Å** | 0 — the DNA fit must undo it |
+| protein only displaced 20 Å | **20.000 Å** | ~20 |
+| protein flipped 180° about the helix axis | **36.455 Å** | large |
+
+The arithmetic is correct and rigid motion of the whole complex is correctly undone.
+
+### Positive control: real cocrystals vs their own untemplated rf3 refold
+
+5 folds, MSA-free, no template, the crystal's own protein and DNA sequences. **$0.10.**
+
+| pdb | protein | DNA-aligned Cα-RMSD | protein-only | maj-groove H-b | 8 Å gate |
+|---|---|---|---|---|---|
+| 1AAY | Zif268 | **0.78** | 0.61 | 15 | PASS |
+| 1LMB | λ repressor | **2.84** | 1.47 | 8 | PASS |
+| 1AZP | Sac7d (palindromic duplex) | **1.34** | 1.17 | 0 | PASS |
+| 1CDW | TBP | **32.96** | 21.04 | 2 | FAIL |
+| 3HDD | Engrailed HD | **40.90** | **0.81** | 2 | FAIL |
+
+**The metric is sound.** Three real cocrystals score 0.78–2.84 Å, and 1AAY's 15
+major-groove H-bonds are what a genuine base-reading interface looks like against our
+designs' median of 1.
+
+**But the oracle is not.** 1CDW is a whole-structure failure (protein-only 21 Å) and is
+the same TBP that already fails our ΔminPAE panel (minPAE 15.73, argmin on the scramble).
+**3HDD is the important one: the protein folds essentially perfectly (0.81 Å) and rf3
+places it 40.9 Å away from where the crystal puts it on its own DNA.** That is exactly the
+signature we attributed to our designs — good fold, bad placement.
+
+So the paper's 8 Å DNA-aligned gate, evaluated through MSA-free rf3, **rejects 2 of 5
+crystallographically-solved DNA binders, one of them perfectly folded.** This is the same
+failure mode already recorded for the `minPAE < 1.25` gate: a paper threshold that does
+not survive the oracle substitution.
+
+**What this does NOT do is exonerate the designs.** The control base rate is 3/5 passing;
+ours is 0/80. The designs are still worse than real binders measured the same way. The
+honest reading is that ~31 Å conflates two effects that this experiment cannot separate at
+n=5, and that the gate cannot be used as a pass/fail criterion on rf3 without a
+calibration term.
+
+### A latent defect in the metric, found by running it
+
+DNA atoms are matched on `(chain, res_id, atom_name)`. Crystal DNA is numbered 201–221 /
+101–108 / 51–61 while an rf3 refold is always 1..N, so the first run raised
+`too few common DNA atoms to superpose (0)` for 3HDD and 1AZP — and, worse, **silently fit
+1AAY on one strand only** (its chain B is 1–11 in both; chain C is 51–61 vs 1–11). It did
+not raise because ≥3 atoms still matched.
+
+Design→refold pairs both derive from the same duplex CIF, so numbering agrees there and
+the Phase-2.5 numbers are not affected. But the metric does not verify that *both* strands
+matched, and should: a partial-strand fit is silently weaker, not wrong-looking.
+`scripts/validate_rmsd_metric.py` renumbers each strand 1..N and asserts every refold
+strand paired.
+
+Incidentally, the true palindrome (1AZP, `GCGATCGC`) scored 1.34 Å — for a genuinely
+symmetric duplex either strand assignment gives an equivalent fit, so the docstring's
+palindrome worry is misplaced. The real risk is a *near*-palindrome, which would pair
+wrongly and not be symmetric enough to absorb it.

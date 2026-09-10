@@ -1,0 +1,57 @@
+[
+  {
+    "pdb": "1AAY",
+    "dna_aligned": 0.78,
+    "protein_only": 0.61,
+    "major_groove_hbonds": 15,
+    "palindromic": false,
+    "chain_map": {
+      "B": "C",
+      "C": "B"
+    }
+  },
+  {
+    "pdb": "1CDW",
+    "dna_aligned": 32.96,
+    "protein_only": 21.04,
+    "major_groove_hbonds": 2,
+    "palindromic": false,
+    "chain_map": {
+      "B": "C",
+      "C": "B"
+    }
+  },
+  {
+    "pdb": "1LMB",
+    "dna_aligned": 2.84,
+    "protein_only": 1.47,
+    "major_groove_hbonds": 8,
+    "palindromic": false,
+    "chain_map": {
+      "B": "2",
+      "C": "1"
+    }
+  },
+  {
+    "pdb": "3HDD",
+    "dna_aligned": 40.9,
+    "protein_only": 0.81,
+    "major_groove_hbonds": 2,
+    "palindromic": false,
+    "chain_map": {
+      "B": "D",
+      "C": "C"
+    }
+  },
+  {
+    "pdb": "1AZP",
+    "dna_aligned": 1.34,
+    "protein_only": 1.17,
+    "major_groove_hbonds": 0,
+    "palindromic": true,
+    "chain_map": {
+      "B": "B",
+      "C": "C"
+    }
+  }
+]

@@ -74,7 +74,10 @@ python scripts/make_rfd3na_specs.py \
 > shape. Consistent with the measurement that 6 vs 8 atoms was indistinguishable over
 > 100 refolds — the count was not the operative variable, so no fixed count is the fix.
 >
-> HBPLUS must be installed GPU-side for conditioning to work.
+> HBPLUS is **not** needed for conditioning (verified against the rfd3na source
+> 2026-09-02). It is used only by the hbond *metrics* and by training-time hbond
+> calculation, which is gated behind `TrainingConditionRoute("calculate_hbonds")`.
+> Missing HBPLUS costs a warning and the hbond metric, not the conditioning.
 >
 > **Provenance, corrected 2026-08-05.** This note used to say "the paper conditions
 > on a selected subset, e.g. the N7/O6 of the central G/A run". **That is not in the

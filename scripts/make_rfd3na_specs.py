@@ -14,8 +14,11 @@ Key schema facts this encodes (verified against the foundry docs, not assumed):
     So this generator emits one spec PER ori token; sweep over them at submit time.
   * H-bond conditioning uses two InputSelection dicts, `select_hbond_donor` and
     `select_hbond_acceptor`, keyed by DNA residue id ("A6", "B3-4") with
-    comma-joined atom-name strings as values ("N7,O6"). Requires HBPLUS installed
-    on the GPU side.
+    comma-joined atom-name strings as values ("N7,O6"). HBPLUS is NOT required
+    for this -- it is used only by the hbond metrics and by training-time hbond
+    calculation. Atom names are split on "," by foundry's get_name_mask, which
+    RAISES if a requested atom is absent, so a mistyped atom name fails loudly
+    rather than silently dropping the constraint.
   * The DNA is held fixed via `select_fixed_atoms: {"<dna resid range>": "ALL"}`.
   * `contig` lists the fixed DNA chains plus the designed protein length range
     using the InputSelection mini-language.
