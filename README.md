@@ -54,7 +54,7 @@ from this repo.
 | `figures/` | publication-grade figures |
 | `docs/` | method notes, replication log, limitations |
 
-## Substitutions vs. the original (stated honestly)
+## Substitutions vs. the original
 
 | Original | Here | Why |
 |---|---|---|
